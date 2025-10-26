@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -14,8 +15,10 @@ for p in (str(ROOT), str(APP)):
 # Default test environment
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("LOG_LEVEL", "debug")
+os.environ.setdefault("LOCAL_STORAGE_PATH", "test_storage")
 
 from app.main import app  # noqa: E402
+
 
 @pytest.fixture(scope="session")
 def client():
