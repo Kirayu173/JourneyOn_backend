@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.models import ItineraryItem
+from app.services.audit_service import log_action
 from app.services.trip_service import get_trip
 
 
@@ -44,6 +45,14 @@ def create_item(
         details=details,
     )
     db.add(item)
+    db.flush()
+    log_action(
+        db,
+        action="itinerary_item_created",
+        user_id=user_id,
+        trip_id=trip_id,
+        detail=f"item_id={item.id}",
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -103,6 +112,14 @@ def update_item(
         item.details = details
 
     db.add(item)
+    db.flush()
+    log_action(
+        db,
+        action="itinerary_item_updated",
+        user_id=user_id,
+        trip_id=item.trip_id,
+        detail=f"item_id={item.id}",
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -113,5 +130,14 @@ def delete_item(db: Session, *, item_id: int, user_id: int) -> None:
     if item is None:
         raise HTTPException(status_code=404, detail="itinerary_item_not_found")
     _ensure_trip_ownership(db, item.trip_id, user_id)
+    item_id = item.id
+    trip_id = item.trip_id
     db.delete(item)
+    log_action(
+        db,
+        action="itinerary_item_deleted",
+        user_id=user_id,
+        trip_id=trip_id,
+        detail=f"item_id={item_id}",
+    )
     db.commit()

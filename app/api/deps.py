@@ -30,3 +30,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise HTTPException(status_code=401, detail="user_not_found")
     return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Ensure that the current user is an administrator."""
+
+    meta: Dict | None = getattr(user, "meta", None)
+    is_admin = False
+    if isinstance(meta, dict):
+        is_admin = bool(meta.get("is_admin"))
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="admin_required")
+    return user

@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.models import Task
+from app.services.audit_service import log_action
 from app.services.trip_service import get_trip
 
 
@@ -42,6 +43,14 @@ def create_task(
         meta=meta or {},
     )
     db.add(task)
+    db.flush()
+    log_action(
+        db,
+        action="task_created",
+        user_id=user_id,
+        trip_id=trip_id,
+        detail=f"task_id={task.id}",
+    )
     db.commit()
     db.refresh(task)
     return task
@@ -71,6 +80,13 @@ def update_task_status(db: Session, *, task_id: int, user_id: int, new_status: s
     _ensure_trip_ownership(db, task.trip_id, user_id)
     task.status = new_status
     db.add(task)
+    log_action(
+        db,
+        action="task_status_updated",
+        user_id=user_id,
+        trip_id=task.trip_id,
+        detail=f"task_id={task.id}:{new_status}",
+    )
     db.commit()
     db.refresh(task)
     return task
@@ -111,6 +127,14 @@ def update_task(
         task.meta = meta
 
     db.add(task)
+    db.flush()
+    log_action(
+        db,
+        action="task_updated",
+        user_id=user_id,
+        trip_id=task.trip_id,
+        detail=f"task_id={task.id}",
+    )
     db.commit()
     db.refresh(task)
     return task
@@ -121,5 +145,14 @@ def delete_task(db: Session, *, task_id: int, user_id: int) -> None:
     if task is None:
         raise HTTPException(status_code=404, detail="task_not_found")
     _ensure_trip_ownership(db, task.trip_id, user_id)
+    task_id = task.id
+    trip_id = task.trip_id
     db.delete(task)
+    log_action(
+        db,
+        action="task_deleted",
+        user_id=user_id,
+        trip_id=trip_id,
+        detail=f"task_id={task_id}",
+    )
     db.commit()
