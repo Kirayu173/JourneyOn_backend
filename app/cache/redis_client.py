@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from redis.asyncio import Redis
+from redis.asyncio.client import Pipeline
 from redis.exceptions import RedisError
 
 from app.core.config import settings
@@ -21,7 +22,8 @@ def _get_raw_client() -> Optional[Redis]:
     url = settings.REDIS_URL
     if not url:
         return None
-    return Redis.from_url(url, decode_responses=True)
+    client = Redis.from_url(url, decode_responses=True)
+    return cast(Redis, client)
 
 
 def get_client() -> Optional[Redis]:
@@ -57,7 +59,8 @@ async def get_value(key: str) -> Optional[str]:
     if client is None:
         return None
     try:
-        return await client.get(key)
+        value = await client.get(key)
+        return cast(Optional[str], value)
     except RedisError:
         logger.warning("Redis GET failed", exc_info=True)
         return None
@@ -97,7 +100,7 @@ async def incr(key: str, *, expire_seconds: int | None = None) -> Optional[int]:
     if client is None:
         return None
     try:
-        pipe = client.pipeline(True)
+        pipe: Pipeline = client.pipeline(True)
         pipe.incr(key, 1)
         if expire_seconds:
             pipe.expire(key, expire_seconds, nx=True)

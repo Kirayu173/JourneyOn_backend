@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.schemas.common import Envelope
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -14,8 +17,10 @@ class LogLevelPatch(BaseModel):
     level: str
 
 
-@router.patch("/log-level", response_model=Envelope[dict])
-def patch_log_level(req: LogLevelPatch, current_user=Depends(get_current_user)) -> Envelope[dict]:
+@router.patch("/log-level", response_model=Envelope[Dict[str, Any]])
+def patch_log_level(
+    req: LogLevelPatch, current_user: User = Depends(get_current_user)
+) -> Envelope[Dict[str, Any]]:
     """Adjust application root log level at runtime.
 
     Accepts levels like debug, info, warning, error.

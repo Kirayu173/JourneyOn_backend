@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeAlias, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.cache.redis_client import get_value, incr, set_value, ping
 from app.core.config import settings
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.services.embedding_service import EmbeddingService
@@ -63,10 +64,20 @@ def _rate_limited_local(user_id: int, max_req: int) -> bool:
     return False
 
 
+ConditionType: TypeAlias = (
+    qmodels.FieldCondition
+    | qmodels.IsEmptyCondition
+    | qmodels.IsNullCondition
+    | qmodels.HasIdCondition
+    | qmodels.NestedCondition
+    | qmodels.Filter
+)
+
+
 def _build_filter(filters: Optional[Dict[str, Any]]) -> Optional[qmodels.Filter]:
     if not filters:
         return None
-    conditions: List[qmodels.FieldCondition] = []
+    conditions: List[ConditionType] = []
     for key, value in filters.items():
         if isinstance(value, list):
             conditions.append(
@@ -127,7 +138,7 @@ async def kb_health() -> Envelope[dict[str, Any]]:
 async def _search_impl(
     req: SearchRequest,
     db: Session,
-    current_user,
+    current_user: User,
 ) -> Envelope[list[dict[str, Any]]]:
     if await _rate_limited(current_user.id):
         raise HTTPException(status_code=429, detail="rate_limited")
@@ -137,7 +148,9 @@ async def _search_impl(
     if cached:
         try:
             payload = json.loads(cached)
-            return Envelope(code=0, msg="ok", data=payload)
+            if isinstance(payload, list):
+                data = cast(list[dict[str, Any]], payload)
+                return Envelope(code=0, msg="ok", data=data)
         except json.JSONDecodeError:
             logger.debug("Ignoring corrupt cache entry for %s", cache_key)
 
@@ -154,14 +167,17 @@ async def _search_impl(
         return Envelope(code=0, msg="kb_unavailable", data=[])
     points = await qdrant.search(vector, top_k=req.top_k, filter_=filter_) if vector else []
 
-    results = [
-        {
-            "id": int(p.id),
-            "score": float(p.score),
-            "payload": getattr(p, "payload", {}) or {},
-        }
-        for p in points
-    ]
+    results: list[dict[str, Any]] = []
+    for point in points:
+        payload_obj = getattr(point, "payload", {}) or {}
+        payload = payload_obj if isinstance(payload_obj, dict) else {}
+        results.append(
+            {
+                "id": int(point.id),
+                "score": float(point.score),
+                "payload": payload,
+            }
+        )
 
     if req.rerank and settings.OLLAMA_RERANK_ENABLED:
         try:
@@ -169,14 +185,18 @@ async def _search_impl(
         except Exception:
             logger.exception("rerank_failed")
 
-    final_payload = [
-        {
-            "id": item["payload"].get("entry_id", item["id"]),
-            "title": item["payload"].get("title"),
-            "similarity": round(float(item.get("score", 0.0)), 4),
-        }
-        for item in results
-    ]
+    final_payload: list[dict[str, Any]] = []
+    for item in results:
+        payload = item.get("payload")
+        payload_dict = payload if isinstance(payload, dict) else {}
+        entry_id = payload_dict.get("entry_id", item.get("id"))
+        title = payload_dict.get("title")
+        score_value = item.get("score", 0.0)
+        try:
+            similarity = round(float(score_value), 4)
+        except (TypeError, ValueError):
+            similarity = 0.0
+        final_payload.append({"id": entry_id, "title": title, "similarity": similarity})
 
     try:
         await set_value(cache_key, json.dumps(final_payload), expire_seconds=_CACHE_TTL)
@@ -189,7 +209,7 @@ async def _search_impl(
 async def kb_search(
     req: SearchRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[list[dict[str, Any]]]:
     return await _search_impl(req, db, current_user)
 
@@ -201,7 +221,7 @@ async def kb_search_get(
     rerank: bool = False,
     filters: str | None = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[list[dict[str, Any]]]:
     try:
         filter_payload = json.loads(filters) if filters else None

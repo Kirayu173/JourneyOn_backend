@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.conversation_schemas import ConversationResponse
@@ -20,7 +21,7 @@ def list_conversations(
     stage: str | None = None,
     limit: int = 20,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[ConversationResponse]]:
     items = get_history(db, trip_id=trip_id, user_id=current_user.id, stage=stage, limit=limit)
     return Envelope(code=0, msg="ok", data=[ConversationResponse.model_validate(i) for i in items])

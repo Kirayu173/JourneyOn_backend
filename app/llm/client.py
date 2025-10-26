@@ -6,7 +6,7 @@ import logging
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, Iterable, List, Optional
+from typing import Any, AsyncIterator, Dict, Iterable, List, Optional, Sequence, cast
 
 import httpx
 
@@ -50,7 +50,7 @@ class LLMClient(ABC):
 
     async def chat(
         self,
-        messages: List[Dict[str, object]],
+        messages: List[Dict[str, Any]],
         *,
         stream: bool = False,
         run_id: Optional[str] = None,
@@ -71,11 +71,11 @@ class LLMClient(ABC):
         return await self._embed_batch(texts_list)
 
     @abstractmethod
-    async def _chat(self, messages: List[Dict[str, object]], *, run_id: str) -> ChatResponse:
+    async def _chat(self, messages: List[Dict[str, Any]], *, run_id: str) -> ChatResponse:
         ...
 
     @abstractmethod
-    def _chat_stream(self, messages: List[Dict[str, object]], *, run_id: str) -> AsyncIterator[StreamChunk]:
+    def _chat_stream(self, messages: List[Dict[str, Any]], *, run_id: str) -> AsyncIterator[StreamChunk]:
         ...
 
     @abstractmethod
@@ -112,7 +112,7 @@ class OllamaLLMClient(LLMClient):
                 delay = min(delay * 2, 10)
         raise RuntimeError("ollama_retry_failed")
 
-    async def _chat(self, messages: List[Dict[str, object]], *, run_id: str) -> ChatResponse:
+    async def _chat(self, messages: List[Dict[str, Any]], *, run_id: str) -> ChatResponse:
         payload = {"model": self._chat_model, "messages": messages, "stream": False}
         try:
             response = await self._post_with_retry("/api/chat", payload)
@@ -132,7 +132,7 @@ class OllamaLLMClient(LLMClient):
         }
         return ChatResponse(content=content, run_id=run_id, usage=usage)
 
-    async def _stream_iter(self, messages: List[Dict[str, object]], *, run_id: str) -> AsyncIterator[StreamChunk]:
+    async def _stream_iter(self, messages: List[Dict[str, Any]], *, run_id: str) -> AsyncIterator[StreamChunk]:
         payload = {"model": self._chat_model, "messages": messages, "stream": True}
         timeout_cfg = httpx.Timeout(self._stream_timeout)
         try:
@@ -170,7 +170,7 @@ class OllamaLLMClient(LLMClient):
             logger.error("ollama_stream_error", exc_info=True, extra={"run_id": run_id})
             raise LLMError("ollama_stream_error", run_id=run_id) from exc
 
-    def _chat_stream(self, messages: List[Dict[str, object]], *, run_id: str) -> AsyncIterator[StreamChunk]:
+    def _chat_stream(self, messages: List[Dict[str, Any]], *, run_id: str) -> AsyncIterator[StreamChunk]:
         return self._stream_iter(messages, run_id=run_id)
 
     async def _embed_batch(self, texts: List[str]) -> List[List[float]]:
@@ -205,7 +205,7 @@ class ZhipuLLMClient(LLMClient):
         self._embed_model = "embedding-2"
         self._headers = {"Authorization": f"Bearer {settings.ZHIPU_API_KEY}"}
 
-    async def _chat(self, messages: List[Dict[str, object]], *, run_id: str) -> ChatResponse:
+    async def _chat(self, messages: List[Dict[str, Any]], *, run_id: str) -> ChatResponse:
         payload = {"model": self._chat_model, "messages": messages, "stream": False}
         delay = self._backoff
         for attempt in range(1, self._max_retries + 1):
@@ -237,7 +237,7 @@ class ZhipuLLMClient(LLMClient):
                 delay = min(delay * 2, 10)
         raise LLMError("zhipu_chat_retry_exhausted", run_id=run_id)
 
-    async def _zhipu_stream(self, messages: List[Dict[str, object]], *, run_id: str) -> AsyncIterator[StreamChunk]:
+    async def _zhipu_stream(self, messages: List[Dict[str, Any]], *, run_id: str) -> AsyncIterator[StreamChunk]:
         payload = {"model": self._chat_model, "messages": messages, "stream": True}
         async with httpx.AsyncClient(timeout=self._stream_timeout) as client:
             async with client.stream(
@@ -261,19 +261,34 @@ class ZhipuLLMClient(LLMClient):
                         yield StreamChunk(delta="", run_id=run_id, done=True)
                         break
                     try:
-                        payload = json.loads(line)
+                        parsed = json.loads(line)
                     except json.JSONDecodeError:
                         logger.debug("zhipu_stream_bad_json", extra={"run_id": run_id})
                         continue
-                    choices = payload.get("choices") or []
+                    if not isinstance(parsed, dict):
+                        continue
+                    raw_choices = parsed.get("choices")
+                    choices: Sequence[dict[str, Any]] = []
+                    if isinstance(raw_choices, Sequence):
+                        choices = [c for c in raw_choices if isinstance(c, dict)]
                     delta = ""
+                    done = False
+                    usage: Dict[str, object] | None = None
                     if choices:
-                        delta = choices[0].get("delta", {}).get("content", "")
-                    done = choices and bool(choices[0].get("finish_reason"))
-                    usage = payload.get("usage") if done else None
+                        first = choices[0]
+                        delta_payload = first.get("delta")
+                        if isinstance(delta_payload, dict):
+                            content = delta_payload.get("content")
+                            if isinstance(content, str):
+                                delta = content
+                        done = bool(first.get("finish_reason"))
+                        if done:
+                            usage_payload = parsed.get("usage")
+                            if isinstance(usage_payload, dict):
+                                usage = cast(Dict[str, object], usage_payload)
                     yield StreamChunk(delta=delta, run_id=run_id, done=done, usage=usage)
 
-    def _chat_stream(self, messages: List[Dict[str, object]], *, run_id: str) -> AsyncIterator[StreamChunk]:
+    def _chat_stream(self, messages: List[Dict[str, Any]], *, run_id: str) -> AsyncIterator[StreamChunk]:
         return self._zhipu_stream(messages, run_id=run_id)
 
     async def _embed_batch(self, texts: List[str]) -> List[List[float]]:
