@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingError(RuntimeError):
+    """Raised when embedding or rerank requests fail."""
     pass
 
 
 def _normalize(text: str) -> str:
+    """Clean up whitespace and handle None values."""
     return (text or "").strip()
 
 
@@ -33,15 +35,18 @@ class EmbeddingService:
         self._semaphore = asyncio.Semaphore(max(1, settings.EMBEDDING_CONCURRENCY))
 
     async def embed(self, text: str) -> List[float]:
+        """Embed a single text string asynchronously."""
         results = await self.embed_batch([text])
         return results[0] if results else []
 
     async def embed_batch(self, texts: Iterable[str]) -> List[List[float]]:
+        """Embed multiple texts concurrently."""
         normalized = [_normalize(t) for t in texts]
         tasks = [self._embed_single(t) for t in normalized]
         return await asyncio.gather(*tasks)
 
     async def _embed_single(self, text: str) -> List[float]:
+        """Send one text to Ollama embedding endpoint with retry logic."""
         if not text:
             return []
 
@@ -58,6 +63,7 @@ class EmbeddingService:
                     if response.status_code >= 400:
                         raise EmbeddingError(f"embedding_failed:{response.status_code}")
                     data = response.json()
+                    # Ollama API may return {"embedding": [...]} or {"data": [{"embedding": [...]}]}
                     if "embedding" in data:
                         vector = data.get("embedding") or []
                         return vector if isinstance(vector, list) else []
@@ -73,6 +79,7 @@ class EmbeddingService:
         raise EmbeddingError("embedding_retry_exhausted")
 
     async def health(self) -> dict[str, object]:
+        """Perform a lightweight embedding health check."""
         payload = {"model": self._model, "prompt": "ping"}
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -101,6 +108,7 @@ class RerankService:
         self._timeout = httpx.Timeout(settings.LLM_REQUEST_TIMEOUT)
 
     async def rerank(self, query: str, documents: Sequence[str]) -> List[RerankResult]:
+        """Rerank a list of documents given a query."""
         if not documents:
             return []
         payload = {
@@ -131,3 +139,4 @@ class RerankService:
 
 
 __all__ = ["EmbeddingService", "EmbeddingError", "RerankService", "RerankResult"]
+

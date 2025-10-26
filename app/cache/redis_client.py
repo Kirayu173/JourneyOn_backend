@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def _get_raw_client() -> Optional[Redis]:
+    """
+    Get or create a cached Redis client instance.
+    Uses async Redis client for compatibility with async FastAPI routes.
+    """
     url = settings.REDIS_URL
     if not url:
         return None
@@ -21,6 +25,9 @@ def _get_raw_client() -> Optional[Redis]:
 
 
 def get_client() -> Optional[Redis]:
+    """
+    Wrapper for obtaining Redis client with error handling.
+    """
     try:
         return _get_raw_client()
     except RedisError:
@@ -29,6 +36,9 @@ def get_client() -> Optional[Redis]:
 
 
 async def ping() -> bool:
+    """
+    Check Redis connectivity asynchronously.
+    """
     client = get_client()
     if client is None:
         return False
@@ -40,6 +50,9 @@ async def ping() -> bool:
 
 
 async def get_value(key: str) -> Optional[str]:
+    """
+    Get a value from Redis by key.
+    """
     client = get_client()
     if client is None:
         return None
@@ -51,6 +64,9 @@ async def get_value(key: str) -> Optional[str]:
 
 
 async def set_value(key: str, value: str, *, expire_seconds: int | None = None) -> None:
+    """
+    Set a Redis key-value pair with optional expiration.
+    """
     client = get_client()
     if client is None:
         return
@@ -61,6 +77,9 @@ async def set_value(key: str, value: str, *, expire_seconds: int | None = None) 
 
 
 async def delete_value(key: str) -> None:
+    """
+    Delete a key from Redis.
+    """
     client = get_client()
     if client is None:
         return
@@ -71,6 +90,9 @@ async def delete_value(key: str) -> None:
 
 
 async def incr(key: str, *, expire_seconds: int | None = None) -> Optional[int]:
+    """
+    Increment a key value and optionally set expiration.
+    """
     client = get_client()
     if client is None:
         return None
@@ -94,3 +116,4 @@ __all__ = [
     "delete_value",
     "incr",
 ]
+

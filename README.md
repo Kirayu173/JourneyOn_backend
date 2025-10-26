@@ -11,7 +11,7 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
 - Error handling middleware returning uniform envelope `{code, msg, data}`
 - Typed settings (`pydantic-settings`) and structured logging
 - Mypy config and pytest tests
-- Async Redis cache helpers with shared rate-limiting/search cache for knowledge base vector search and metadata filters
+- Redis cache helpers with shared rate-limiting/search cache for knowledge base vector search
 - Local file storage abstraction with `/api/trips/{trip_id}/reports` endpoints (base64 upload, metadata list, download, delete)
 - Audit logging service and admin `/api/audit-logs` endpoint for operational tracing
 

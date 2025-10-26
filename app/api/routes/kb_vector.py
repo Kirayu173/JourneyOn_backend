@@ -46,7 +46,6 @@ async def _rate_limited(user_id: int) -> bool:
     max_req = max(1, settings.RATE_LIMIT_PER_MINUTE)
     counter = await incr(f"kb:rate:{user_id}", expire_seconds=_RATE_WINDOW)
     if counter is None:
-        # Fallback to in-process rate limiting
         return _rate_limited_local(user_id, max_req)
     return counter > max_req
 
@@ -77,9 +76,7 @@ def _build_filter(filters: Optional[Dict[str, Any]]) -> Optional[qmodels.Filter]
             conditions.append(
                 qmodels.FieldCondition(key=key, match=qmodels.MatchValue(value=value))
             )
-    if not conditions:
-        return None
-    return qmodels.Filter(must=conditions)
+    return qmodels.Filter(must=conditions) if conditions else None
 
 
 def _cache_key(user_id: int, payload: SearchRequest) -> str:
@@ -114,7 +111,11 @@ async def kb_health() -> Envelope[dict[str, Any]]:
     qdrant = await get_qdrant_service()
     qdrant_ok = await qdrant.ensure_collection() if qdrant else False
     embedding_service = _get_embedding_service()
-    emb_status = await embedding_service.health() if embedding_service else {"ok": False, "detail": "disabled"}
+    emb_status = (
+        await embedding_service.health()
+        if embedding_service
+        else {"ok": False, "detail": "disabled"}
+    )
     redis_ok = await ping()
     return Envelope(
         code=0 if qdrant_ok else 500,
@@ -152,6 +153,7 @@ async def _search_impl(
         logger.warning("qdrant_unavailable")
         return Envelope(code=0, msg="kb_unavailable", data=[])
     points = await qdrant.search(vector, top_k=req.top_k, filter_=filter_) if vector else []
+
     results = [
         {
             "id": int(p.id),
@@ -207,4 +209,5 @@ async def kb_search_get(
         raise HTTPException(status_code=400, detail="invalid_filters")
     req = SearchRequest(query=q, top_k=top_k, rerank=rerank, filters=filter_payload)
     return await _search_impl(req, db, current_user)
+
 
