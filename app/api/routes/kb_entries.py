@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import List
 
+import asyncio
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -14,13 +16,15 @@ from app.services.kb_service import (
     get_kb_entries,
     update_kb_entry,
     delete_kb_entry,
+    process_entry_embedding,
+    remove_entry_vector,
 )
 
 router = APIRouter(prefix="/trips/{trip_id}/kb_entries", tags=["kb_entries"])
 
 
 @router.post("", response_model=Envelope[KBEntryResponse])
-def create_kb_entry_endpoint(
+async def create_kb_entry_endpoint(
     trip_id: int,
     req: KBEntryCreate,
     db: Session = Depends(get_db),
@@ -35,6 +39,7 @@ def create_kb_entry_endpoint(
         content=req.content,
         meta=req.meta,
     )
+    asyncio.create_task(process_entry_embedding(entry.id))
     return Envelope(code=0, msg="ok", data=KBEntryResponse.model_validate(entry))
 
 
@@ -61,7 +66,7 @@ def list_kb_entries_endpoint(
 
 
 @router.patch("/{entry_id}", response_model=Envelope[KBEntryResponse])
-def update_kb_entry_endpoint(
+async def update_kb_entry_endpoint(
     trip_id: int,
     entry_id: int,
     req: KBEntryUpdate,
@@ -78,15 +83,17 @@ def update_kb_entry_endpoint(
         content=req.content,
         meta=req.meta,
     )
+    asyncio.create_task(process_entry_embedding(entry.id))
     return Envelope(code=0, msg="ok", data=KBEntryResponse.model_validate(entry))
 
 
 @router.delete("/{entry_id}")
-def delete_kb_entry_endpoint(
+async def delete_kb_entry_endpoint(
     trip_id: int,
     entry_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ) -> Envelope[bool]:
     delete_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=current_user.id)
+    asyncio.create_task(remove_entry_vector(entry_id))
     return Envelope(code=0, msg="ok", data=True)

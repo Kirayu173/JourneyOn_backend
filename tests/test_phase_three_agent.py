@@ -4,8 +4,32 @@ import json
 import uuid
 from typing import Generator
 
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+
+from app.llm.client import ChatResponse, StreamChunk
+
+
+class _StubLLM:
+    async def chat(self, messages, *, stream: bool = False, run_id: str | None = None):
+        rid = run_id or "stub-run"
+        if stream:
+            async def _aiter():
+                yield StreamChunk(delta="测试回复", run_id=rid)
+                yield StreamChunk(delta="", run_id=rid, done=True)
+
+            return _aiter()
+        return ChatResponse(content="测试回复", run_id=rid, usage={"tokens": 1})
+
+
+@contextmanager
+def _patched_llm() -> Generator[None, None, None]:
+    stub = _StubLLM()
+    with patch("app.agents.orchestrator.get_llm_client", AsyncMock(return_value=stub)):
+        yield
 
 
 def _register_and_get_token(client: TestClient) -> str:
@@ -33,16 +57,17 @@ def test_agent_chat_and_conversations_history(client: TestClient):
     headers = {"Authorization": f"Bearer {token}"}
     trip_id = _create_trip(client, headers)
 
-    payload1 = {"trip_id": trip_id, "stage": "pre", "message": "Plan flights and hotels"}
-    response1 = client.post("/api/agent/chat", json=payload1, headers=headers)
-    assert response1.status_code == 200, response1.text
-    body1 = response1.json()
-    assert body1["code"] == 0
-    assert "agent" in body1["data"] and "tools" in body1["data"]["agent"]
+    with _patched_llm():
+        payload1 = {"trip_id": trip_id, "stage": "pre", "message": "Plan flights and hotels"}
+        response1 = client.post("/api/agent/chat", json=payload1, headers=headers)
+        assert response1.status_code == 200, response1.text
+        body1 = response1.json()
+        assert body1["code"] == 0
+        assert body1["data"]["agent"]["reply"]
 
-    payload2 = {"trip_id": trip_id, "stage": "pre", "message": "Plan today's transport"}
-    response2 = client.post("/api/agent/chat", json=payload2, headers=headers)
-    assert response2.status_code == 200, response2.text
+        payload2 = {"trip_id": trip_id, "stage": "pre", "message": "Plan today's transport"}
+        response2 = client.post("/api/agent/chat", json=payload2, headers=headers)
+        assert response2.status_code == 200, response2.text
 
     history = client.get(f"/api/trips/{trip_id}/conversations", params={"stage": "pre"}, headers=headers)
     assert history.status_code == 200, history.text
@@ -58,8 +83,9 @@ def test_agent_chat_stream_sends_structured_events(client: TestClient):
     trip_id = _create_trip(client, headers)
 
     payload = {"trip_id": trip_id, "stage": "pre", "message": "Recommend hotels and weather"}
-    with client.stream("POST", "/api/agent/chat/stream", json=payload, headers=headers) as stream:
-        raw_chunks = list(_collect_sse_chunks(stream.iter_text()))
+    with _patched_llm():
+        with client.stream("POST", "/api/agent/chat/stream", json=payload, headers=headers) as stream:
+            raw_chunks = list(_collect_sse_chunks(stream.iter_text()))
 
     events = [json.loads(chunk["data"]) for chunk in raw_chunks if "data" in chunk]
     event_types = [e["event"] for e in events]
@@ -110,14 +136,15 @@ def test_agent_websocket_flow(client: TestClient):
     trip_id = _create_trip(client, headers)
 
     ws_url = f"/api/agent/ws/chat?token={token}"
-    with client.websocket_connect(ws_url) as websocket:
-        websocket.send_json({"trip_id": trip_id, "stage": "pre", "message": "Generate pre-trip tasks"})
-        received = []
-        while True:
-            try:
-                received.append(websocket.receive_json())
-            except (RuntimeError, WebSocketDisconnect):
-                break
+    with _patched_llm():
+        with client.websocket_connect(ws_url) as websocket:
+            websocket.send_json({"trip_id": trip_id, "stage": "pre", "message": "Generate pre-trip tasks"})
+            received = []
+            while True:
+                try:
+                    received.append(websocket.receive_json())
+                except (RuntimeError, WebSocketDisconnect):
+                    break
 
     assert any(event["event"] == "message" for event in received)
     assert received[-1]["event"] == "run_completed"

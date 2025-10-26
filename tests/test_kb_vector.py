@@ -24,7 +24,7 @@ def test_kb_vector_search_and_rate_limit(client: TestClient) -> None:
     headers = {"Authorization": f"Bearer {token}"}
 
     original_limit = settings.RATE_LIMIT_PER_MINUTE
-    settings.RATE_LIMIT_PER_MINUTE = 1
+    settings.RATE_LIMIT_PER_MINUTE = 2
     kb_vector_module._local_rate.clear()
     try:
         first = client.post(
@@ -35,13 +35,21 @@ def test_kb_vector_search_and_rate_limit(client: TestClient) -> None:
         assert first.status_code == 200, first.text
         assert first.json()["data"] == []
 
-        second = client.post(
+        second = client.get(
+            "/api/kb/search",
+            params={"q": "城市推荐"},
+            headers=headers,
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["data"] == []
+
+        third = client.post(
             "/api/kb/search",
             json={"query": "更多建议"},
             headers=headers,
         )
-        assert second.status_code == 429
-        assert second.json()["msg"] == "rate_limited"
+        assert third.status_code == 429
+        assert third.json()["msg"] == "rate_limited"
     finally:
         settings.RATE_LIMIT_PER_MINUTE = original_limit
         kb_vector_module._local_rate.clear()

@@ -15,8 +15,8 @@ from app.cache.redis_client import get_value, incr, set_value, ping
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.common import Envelope
-from app.services.embedding_service import embed_texts, health_check as embedding_health
-from app.services.qdrant_service import ensure_collection, search as qdrant_search
+from app.services.embedding_service import EmbeddingService
+from app.services.kb_service import get_qdrant_service, rerank_results
 from qdrant_client.http import models as qmodels
 
 router = APIRouter(prefix="/kb", tags=["kb"])
@@ -42,11 +42,10 @@ _RATE_WINDOW = 60
 logger = logging.getLogger(__name__)
 
 
-def _rate_limited(user_id: int) -> bool:
+async def _rate_limited(user_id: int) -> bool:
     max_req = max(1, settings.RATE_LIMIT_PER_MINUTE)
-    counter = incr(f"kb:rate:{user_id}", expire_seconds=_RATE_WINDOW)
+    counter = await incr(f"kb:rate:{user_id}", expire_seconds=_RATE_WINDOW)
     if counter is None:
-        # Fallback to in-process rate limiting
         return _rate_limited_local(user_id, max_req)
     return counter > max_req
 
@@ -77,9 +76,7 @@ def _build_filter(filters: Optional[Dict[str, Any]]) -> Optional[qmodels.Filter]
             conditions.append(
                 qmodels.FieldCondition(key=key, match=qmodels.MatchValue(value=value))
             )
-    if not conditions:
-        return None
-    return qmodels.Filter(must=conditions)
+    return qmodels.Filter(must=conditions) if conditions else None
 
 
 def _cache_key(user_id: int, payload: SearchRequest) -> str:
@@ -94,29 +91,49 @@ def _cache_key(user_id: int, payload: SearchRequest) -> str:
     return f"kb:search:{digest}"
 
 
+_embedding_service: EmbeddingService | None = None
+
+
+def _get_embedding_service() -> EmbeddingService | None:
+    global _embedding_service
+    if _embedding_service is not None:
+        return _embedding_service
+    try:
+        _embedding_service = EmbeddingService()
+    except RuntimeError:
+        logger.warning("embedding_service_not_configured")
+        _embedding_service = None
+    return _embedding_service
+
+
 @router.get("/health")
-def kb_health() -> Envelope[dict[str, Any]]:
-    ok = ensure_collection()
-    emb = embedding_health()
-    redis_ok = ping()
+async def kb_health() -> Envelope[dict[str, Any]]:
+    qdrant = await get_qdrant_service()
+    qdrant_ok = await qdrant.ensure_collection() if qdrant else False
+    embedding_service = _get_embedding_service()
+    emb_status = (
+        await embedding_service.health()
+        if embedding_service
+        else {"ok": False, "detail": "disabled"}
+    )
+    redis_ok = await ping()
     return Envelope(
-        code=0 if ok else 500,
-        msg="ok" if ok else "qdrant_unavailable",
-        data={"qdrant": ok, "embedding": emb, "redis": redis_ok},
+        code=0 if qdrant_ok else 500,
+        msg="ok" if qdrant_ok else "qdrant_unavailable",
+        data={"qdrant": qdrant_ok, "embedding": emb_status, "redis": redis_ok},
     )
 
 
-@router.post("/search")
-def kb_search(
+async def _search_impl(
     req: SearchRequest,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    db: Session,
+    current_user,
 ) -> Envelope[list[dict[str, Any]]]:
-    if _rate_limited(current_user.id):
+    if await _rate_limited(current_user.id):
         raise HTTPException(status_code=429, detail="rate_limited")
 
     cache_key = _cache_key(current_user.id, req)
-    cached = get_value(cache_key)
+    cached = await get_value(cache_key)
     if cached:
         try:
             payload = json.loads(cached)
@@ -124,9 +141,19 @@ def kb_search(
         except json.JSONDecodeError:
             logger.debug("Ignoring corrupt cache entry for %s", cache_key)
 
-    vec = embed_texts([req.query])[0]
+    embedding_service = _get_embedding_service()
+    if embedding_service is None:
+        logger.warning("embedding_service_unavailable")
+        return Envelope(code=0, msg="embedding_disabled", data=[])
+
+    vector = await embedding_service.embed(req.query)
     filter_ = _build_filter(req.filters)
-    points = qdrant_search(vec, top_k=req.top_k, filter_=filter_) if vec else []
+    qdrant = await get_qdrant_service()
+    if qdrant is None:
+        logger.warning("qdrant_unavailable")
+        return Envelope(code=0, msg="kb_unavailable", data=[])
+    points = await qdrant.search(vector, top_k=req.top_k, filter_=filter_) if vector else []
+
     results = [
         {
             "id": int(p.id),
@@ -136,15 +163,51 @@ def kb_search(
         for p in points
     ]
 
-    # Optional rerank placeholder: maintain input order when not available
-    # A real reranker can be integrated via Ollama if exposed.
-    if req.rerank and settings.OLLAMA_RERANK_MODEL:
-        # TODO: call reranker here when available
-        results = results  # keep same order for now
+    if req.rerank and settings.OLLAMA_RERANK_ENABLED:
+        try:
+            results = await rerank_results(req.query, results)
+        except Exception:
+            logger.exception("rerank_failed")
+
+    final_payload = [
+        {
+            "id": item["payload"].get("entry_id", item["id"]),
+            "title": item["payload"].get("title"),
+            "similarity": round(float(item.get("score", 0.0)), 4),
+        }
+        for item in results
+    ]
 
     try:
-        set_value(cache_key, json.dumps(results), expire_seconds=_CACHE_TTL)
+        await set_value(cache_key, json.dumps(final_payload), expire_seconds=_CACHE_TTL)
     except TypeError:
         logger.debug("Failed to serialize cache entry for %s", cache_key)
-    return Envelope(code=0, msg="ok", data=results)
+    return Envelope(code=0, msg="ok", data=final_payload)
+
+
+@router.post("/search")
+async def kb_search(
+    req: SearchRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[list[dict[str, Any]]]:
+    return await _search_impl(req, db, current_user)
+
+
+@router.get("/search")
+async def kb_search_get(
+    q: str,
+    top_k: int = 10,
+    rerank: bool = False,
+    filters: str | None = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[list[dict[str, Any]]]:
+    try:
+        filter_payload = json.loads(filters) if filters else None
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="invalid_filters")
+    req = SearchRequest(query=q, top_k=top_k, rerank=rerank, filters=filter_payload)
+    return await _search_impl(req, db, current_user)
+
 

@@ -7,8 +7,7 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
 - SQLAlchemy ORM models consistent with design docs
 - Health endpoint `/api/health` (DB/Redis/Qdrant checks)
 - Auth stub: `/api/auth/register`, `/api/auth/login`
-- Agent orchestrator stub: `/api/agent/chat` for JSON responses
-- Streaming endpoints for incremental replies: `/api/agent/chat/stream` (SSE) and `/api/agent/ws/chat` (WebSocket)
+- Unified LLM client with Ollama/Zhipu backends powering `/api/agent/chat`, `/api/agent/chat/stream` (SSE), and `/api/agent/ws/chat` (WebSocket) for real-time conversations
 - Error handling middleware returning uniform envelope `{code, msg, data}`
 - Typed settings (`pydantic-settings`) and structured logging
 - Mypy config and pytest tests
@@ -44,7 +43,8 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
   - `QDRANT_URL` (optional)
   - `SECRET_KEY`, `LOG_LEVEL`
   - `STORAGE_BACKEND`, `LOCAL_STORAGE_PATH`
-  - Embedding provider controls: `ENABLE_EMBEDDING`, `EMBEDDING_PROVIDER`, `OLLAMA_*`, `OPENAI_*`
+- LLM controls: `LLM_PROVIDER` (`ollama`/`zhipu`), `OLLAMA_CHAT_MODEL`, `ZHIPU_API_KEY`, `ZHIPU_BASE_URL`, retry knobs (`LLM_MAX_RETRIES`, `LLM_RETRY_BASE_DELAY`, `LLM_REQUEST_TIMEOUT`)
+- Embedding/RAG controls: `ENABLE_EMBEDDING`, `EMBEDDING_CONCURRENCY`, `OLLAMA_EMBED_MODEL`, `OLLAMA_RERANK_MODEL`, `OLLAMA_RERANK_ENABLED`
 
 ## File Storage and Reports API
 - Upload reports using base64 payloads via `POST /api/trips/{trip_id}/reports` (fields: `filename`, `content_type`, `data`, optional `format`).

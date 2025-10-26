@@ -43,12 +43,12 @@ async def agent_chat(
         message=req.message,
         message_meta={
             "client_ctx": req.client_ctx or {},
-            "endpoint_version": "v1-user-only",
+            "endpoint_version": "v2-sync",
         },
     )
 
     orchestrator = Orchestrator(db)
-    reply = orchestrator.handle_message(
+    reply = await orchestrator.chat(
         trip_id=req.trip_id,
         stage=req.stage,
         message=req.message,
@@ -97,7 +97,7 @@ async def agent_chat_stream(
         message=req.message,
         message_meta={
             "client_ctx": req.client_ctx or {},
-            "endpoint_version": "v1-stream",
+            "endpoint_version": "v2-stream",
         },
     )
 
@@ -166,7 +166,7 @@ async def agent_chat_websocket(websocket: WebSocket) -> None:
             message=message,
             message_meta={
                 "client_ctx": client_ctx,
-                "endpoint_version": "v1-websocket",
+                "endpoint_version": "v2-websocket",
             },
         )
 

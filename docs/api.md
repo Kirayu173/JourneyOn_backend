@@ -63,7 +63,9 @@
 
 | 方法 | 路径 | 描述 |
 | ---- | ---- | ---- |
-| POST | `/api/agent/chat` | 发送消息给行程智能体，当前实现返回 Mock 响应（非真实 LLM），包含 `conversation` 回写与 `agent` 建议字段，便于前端联调。|
+| POST | `/api/agent/chat` | 调用配置的 LLM（Ollama / 智谱）生成回复，返回 `agent.reply`、`agent.run_id`、`usage` 等信息。异常时 `agent.error` 会带错误标识。|
+| POST | `/api/agent/chat/stream` | SSE 流式接口，事件序列包含 `run_started`、`message`（多段增量，`meta.delta=true`）以及最终整合的助手消息和 `run_completed`。|
+| WS | `/api/agent/ws/chat` | WebSocket 版实时对话，事件结构与 SSE 相同。握手需附带 `token` 查询参数或 `Authorization` 头。|
 
 ## 知识库条目（KB Entries）
 
@@ -78,10 +80,11 @@
 
 | 方法 | 路径 | 描述 |
 | ---- | ---- | ---- |
-| POST | `/api/kb/search` | 基于向量的语义检索。请求体：`{"query":"文本","top_k":10,"rerank":false,"filters":{"user_id":123}}`。返回 `id`、`score` 与 payload 列表。当 Redis 不可用时自动回退到进程内限流与缓存。默认按 `settings.RATE_LIMIT_PER_MINUTE`（60次/分钟）限流，超限返回 `429 rate_limited`。|
-| GET | `/api/kb/health` | 详见健康检查章节。|
+| POST | `/api/kb/search` | RAG 语义检索接口。请求体：`{"query":"文本","top_k":10,"rerank":true,"filters":{"trip_id":1}}`，返回 `[{"id":<entry_id>,"title":...,"similarity":0.87}]`。Redis 缓存命中后直接返回，未命中则调用异步嵌入服务 + Qdrant 搜索，若启用 `rerank` 且配置了 `OLLAMA_RERANK_MODEL`，会使用精排模型优化排序。|
+| GET | `/api/kb/search` | 查询参数版语义检索，`q` 为必填，其余与 POST 相同（`filters` 支持 JSON 字符串）。|
+| GET | `/api/kb/health` | 返回 Qdrant 集合是否存在、Embedding 服务健康状态以及 Redis ping 结果。|
 
-说明：若未配置 Qdrant/Embedding，接口仍返回空结果，便于前端兼容。
+说明：若未启用嵌入或未配置 Qdrant，接口返回 `code=0`、`data=[]` 并附带 `msg` 表明不可用，便于前端降级。
 
 ## 报告文件（Reports）
 

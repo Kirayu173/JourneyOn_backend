@@ -1,16 +1,107 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Optional, Sequence
 
 from fastapi import HTTPException
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.http import models as qmodels
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
 
-from app.db.models import KBEntry
-from app.services.trip_service import get_trip
 from app.core.config import settings
-from app.services.embedding_service import embed_texts
-from app.services.qdrant_service import upsert_points
+from app.db.models import KBEntry
+from app.db.session import SessionLocal
+from app.services.embedding_service import EmbeddingService, RerankService
+from app.services.trip_service import get_trip
+
+logger = logging.getLogger(__name__)
+
+
+class QdrantService:
+    def __init__(self) -> None:
+        if not settings.QDRANT_URL:
+            raise RuntimeError("QDRANT_URL not configured")
+        self._client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+        self._collection = settings.QDRANT_COLLECTION_NAME
+        self._lock = asyncio.Lock()
+
+    async def ensure_collection(self) -> bool:
+        async with self._lock:
+            try:
+                await self._client.get_collection(self._collection)
+                return True
+            except Exception:
+                pass
+            try:
+                await self._client.recreate_collection(
+                    collection_name=self._collection,
+                    vectors_config=qmodels.VectorParams(
+                        size=settings.VECTOR_DIM,
+                        distance=qmodels.Distance.COSINE
+                        if settings.VECTOR_DISTANCE.lower() == "cosine"
+                        else qmodels.Distance.DOT,
+                    ),
+                )
+                return True
+            except Exception:
+                logger.exception("qdrant_collection_init_failed")
+                return False
+
+    async def upsert_points(
+        self,
+        *,
+        ids: list[int],
+        vectors: list[list[float]],
+        payloads: list[dict],
+    ) -> None:
+        if not vectors:
+            return
+        points: list[qmodels.PointStruct] = []
+        for pid, vec, payload in zip(ids, vectors, payloads):
+            if not vec:
+                continue
+            points.append(qmodels.PointStruct(id=int(pid), vector=vec, payload=payload))
+        if not points:
+            return
+        await self._client.upsert(collection_name=self._collection, points=points)
+
+    async def delete_point(self, point_id: int) -> None:
+        selector = qmodels.PointIdsList(points=[point_id])
+        await self._client.delete(collection_name=self._collection, points_selector=selector)
+
+    async def search(
+        self,
+        vector: list[float],
+        *,
+        top_k: int,
+        filter_: Optional[qmodels.Filter] = None,
+    ) -> list[qmodels.ScoredPoint]:
+        if not vector:
+            return []
+        return await self._client.search(
+            collection_name=self._collection,
+            query_vector=vector,
+            limit=top_k,
+            query_filter=filter_,
+        )
+
+
+_qdrant_instance: QdrantService | None = None
+_qdrant_lock = asyncio.Lock()
+
+
+async def get_qdrant_service() -> QdrantService | None:
+    global _qdrant_instance
+    if _qdrant_instance is not None:
+        return _qdrant_instance
+    if not settings.QDRANT_URL:
+        return None
+    async with _qdrant_lock:
+        if _qdrant_instance is None:
+            _qdrant_instance = QdrantService()
+            await _qdrant_instance.ensure_collection()
+        return _qdrant_instance
 
 
 def _ensure_trip_ownership(db: Session, trip_id: int, user_id: int) -> None:
@@ -29,10 +120,6 @@ def create_kb_entry(
     content: Optional[str],
     meta: Optional[dict] = None,
 ) -> KBEntry:
-    """Create a KB entry under a user's trip.
-
-    When embedding is enabled, compute embedding and upsert to Qdrant.
-    """
     _ensure_trip_ownership(db, trip_id, user_id)
     entry = KBEntry(
         trip_id=trip_id,
@@ -42,25 +129,6 @@ def create_kb_entry(
         meta=meta or {},
     )
     db.add(entry)
-    db.flush()  # get entry.id
-
-    # Optional embedding + vector store upsert
-    if settings.ENABLE_EMBEDDING and settings.OLLAMA_URL:
-        doc_text = "\n\n".join([t for t in [title or "", content or ""] if t])
-        vec = embed_texts([doc_text])[0]
-        entry.embedding = vec
-        try:
-            upsert_points([entry.id], [vec], [
-                {
-                    "entry_id": entry.id,
-                    "trip_id": trip_id,
-                    "title": title,
-                    "source": source,
-                }
-            ])
-        except Exception:
-            pass
-
     db.commit()
     db.refresh(entry)
     return entry
@@ -76,15 +144,13 @@ def get_kb_entries(
     limit: int = 20,
     offset: int = 0,
 ) -> Sequence[KBEntry]:
-    """List KB entries for a trip with optional search and pagination."""
     _ensure_trip_ownership(db, trip_id, user_id)
     qset = db.query(KBEntry).filter(KBEntry.trip_id == trip_id)
     if source:
         qset = qset.filter(KBEntry.source == source)
     if q:
         like = f"%{q}%"
-        qset = qset.filter(or_(KBEntry.title.ilike(like), KBEntry.content.ilike(like)))
-    # basic optimization: order by newest first and paginate
+        qset = qset.filter((KBEntry.title.ilike(like)) | (KBEntry.content.ilike(like)))
     return (
         qset.order_by(KBEntry.id.desc())
         .offset(offset)
@@ -94,7 +160,6 @@ def get_kb_entries(
 
 
 def get_kb_entry(db: Session, *, entry_id: int, trip_id: int, user_id: int) -> KBEntry:
-    """Fetch a KB entry by id, ensuring ownership via trip."""
     _ensure_trip_ownership(db, trip_id, user_id)
     entry = db.query(KBEntry).filter(KBEntry.id == entry_id, KBEntry.trip_id == trip_id).first()
     if not entry:
@@ -113,7 +178,6 @@ def update_kb_entry(
     content: Optional[str] = None,
     meta: Optional[dict] = None,
 ) -> KBEntry:
-    """Update a KB entry fields. Optionally refresh embedding & vector store."""
     entry = get_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=user_id)
     if source is not None:
         entry.source = source
@@ -123,22 +187,6 @@ def update_kb_entry(
         entry.content = content
     if meta is not None:
         entry.meta = meta
-    # Optional embedding refresh
-    if settings.ENABLE_EMBEDDING and settings.OLLAMA_URL and (title is not None or content is not None):
-        doc_text = "\n\n".join([t for t in [entry.title or "", entry.content or ""] if t])
-        vec = embed_texts([doc_text])[0]
-        entry.embedding = vec
-        try:
-            upsert_points([entry.id], [vec], [
-                {
-                    "entry_id": entry.id,
-                    "trip_id": entry.trip_id,
-                    "title": entry.title,
-                    "source": entry.source,
-                }
-            ])
-        except Exception:
-            pass
     db.add(entry)
     db.commit()
     db.refresh(entry)
@@ -146,7 +194,91 @@ def update_kb_entry(
 
 
 def delete_kb_entry(db: Session, *, entry_id: int, trip_id: int, user_id: int) -> None:
-    """Delete a KB entry under the user's trip."""
     entry = get_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=user_id)
     db.delete(entry)
     db.commit()
+
+
+async def process_entry_embedding(entry_id: int) -> None:
+    if not settings.ENABLE_EMBEDDING:
+        return
+    try:
+        embedding_service = EmbeddingService()
+    except RuntimeError:
+        logger.warning("embedding_service_disabled")
+        return
+
+    qdrant = await get_qdrant_service()
+    session = SessionLocal()
+    try:
+        entry = session.query(KBEntry).filter(KBEntry.id == entry_id).first()
+        if not entry:
+            return
+        doc_text = "\n\n".join([t for t in [entry.title or "", entry.content or ""] if t])
+        vector = await embedding_service.embed(doc_text)
+        entry.embedding = vector
+        session.add(entry)
+        session.commit()
+        if qdrant and vector:
+            await qdrant.upsert_points(
+                ids=[entry.id],
+                vectors=[vector],
+                payloads=[{
+                    "entry_id": entry.id,
+                    "trip_id": entry.trip_id,
+                    "title": entry.title,
+                    "source": entry.source,
+                    "content": entry.content,
+                }],
+            )
+    except Exception:
+        logger.exception("kb_embedding_process_failed", extra={"entry_id": entry_id})
+    finally:
+        session.close()
+
+
+async def remove_entry_vector(entry_id: int) -> None:
+    qdrant = await get_qdrant_service()
+    if qdrant is None:
+        return
+    try:
+        await qdrant.delete_point(entry_id)
+    except Exception:
+        logger.exception("qdrant_delete_failed", extra={"entry_id": entry_id})
+
+
+async def rerank_results(query: str, results: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not results:
+        return results
+    if not settings.OLLAMA_RERANK_ENABLED:
+        return results
+    try:
+        reranker = RerankService()
+    except RuntimeError:
+        return results
+    documents = [str((item.get("payload") or {}).get("content", "")) for item in results]
+    scores = await reranker.rerank(query, documents)
+    score_map = {res.index: res.score for res in scores}
+    if not score_map:
+        return results
+    indexed = list(enumerate(results))
+    ranked = sorted(
+        indexed,
+        key=lambda pair: score_map.get(pair[0], float(pair[1].get("score", 0.0))),
+        reverse=True,
+    )
+    return [item for _, item in ranked]
+
+
+__all__ = [
+    "QdrantService",
+    "get_qdrant_service",
+    "create_kb_entry",
+    "get_kb_entries",
+    "get_kb_entry",
+    "update_kb_entry",
+    "delete_kb_entry",
+    "process_entry_embedding",
+    "remove_entry_vector",
+    "rerank_results",
+]
