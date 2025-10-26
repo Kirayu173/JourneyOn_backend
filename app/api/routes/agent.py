@@ -53,6 +53,7 @@ async def agent_chat(
         stage=req.stage,
         message=req.message,
         user_id=current_user.id,
+        client_ctx=req.client_ctx or {},
     )
 
     return Envelope(
@@ -107,6 +108,7 @@ async def agent_chat_stream(
         stage=req.stage,
         message_text=req.message,
         user_id=current_user.id,
+        client_ctx=req.client_ctx or {},
     )
     return StreamingResponse(_event_source(stream), media_type="text/event-stream")
 

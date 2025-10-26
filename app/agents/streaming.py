@@ -23,9 +23,11 @@ class StreamingAgentSession:
         stage: str,
         message_text: str,
         user_id: int,
+        client_ctx: dict | None = None,
     ) -> AsyncGenerator[AgentEvent, None]:
         sequence = 0
         run_id = uuid.uuid4().hex
+        final_usage: dict | None = None
 
         def _next_sequence() -> int:
             nonlocal sequence
@@ -50,6 +52,7 @@ class StreamingAgentSession:
             stage=stage,
             message=message_text,
             user_id=user_id,
+            client_ctx=client_ctx,
         )
 
         full_chunks: List[str] = []
@@ -66,6 +69,7 @@ class StreamingAgentSession:
                     ),
                 )
             if chunk.done:
+                final_usage = chunk.usage or {}
                 break
 
         final_message = "".join(full_chunks)
@@ -75,7 +79,7 @@ class StreamingAgentSession:
             message=AgentMessage(
                 role=AgentMessageRole.ASSISTANT,
                 content=final_message,
-                meta={"delta": False, "run_id": run_id},
+                meta={"delta": False, "run_id": run_id, "usage": final_usage or {}},
             ),
         )
 
@@ -85,6 +89,7 @@ class StreamingAgentSession:
             data={
                 "run_id": run_id,
                 "tool_count": 0,
+                "usage": final_usage or {},
             },
         )
 
