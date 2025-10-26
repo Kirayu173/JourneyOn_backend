@@ -153,6 +153,8 @@ class KBEntry(Base):
     content: Optional[str] = Column(Text)
     meta: dict = Column("metadata", JSON, default={})
     embedding_id: Optional[str] = Column(String(64))
+    # Store embedding as JSON list of floats to keep compatibility across SQLite/Postgres
+    embedding: Optional[list] = Column(JSON, nullable=True)
     created_at: datetime = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 

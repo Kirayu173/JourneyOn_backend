@@ -30,3 +30,15 @@ async def init_db() -> None:
     """
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, Base.metadata.create_all, engine)
+    # Lightweight migration for SQLite to add new columns if missing
+    if engine.dialect.name == "sqlite":
+        def _migrate_sqlite() -> None:
+            with engine.begin() as conn:
+                try:
+                    cols = conn.exec_driver_sql("PRAGMA table_info(kb_entries)").fetchall()
+                    names = {c[1] for c in cols}
+                    if "embedding" not in names:
+                        conn.exec_driver_sql("ALTER TABLE kb_entries ADD COLUMN embedding JSON")
+                except Exception:
+                    pass
+        await loop.run_in_executor(None, _migrate_sqlite)

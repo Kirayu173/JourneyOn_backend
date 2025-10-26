@@ -8,6 +8,9 @@ from sqlalchemy import or_, func
 
 from app.db.models import KBEntry
 from app.services.trip_service import get_trip
+from app.core.config import settings
+from app.services.embedding_service import embed_texts
+from app.services.qdrant_service import upsert_points
 
 
 def _ensure_trip_ownership(db: Session, trip_id: int, user_id: int) -> None:
@@ -26,7 +29,10 @@ def create_kb_entry(
     content: Optional[str],
     meta: Optional[dict] = None,
 ) -> KBEntry:
-    """Create a KB entry under a user's trip."""
+    """Create a KB entry under a user's trip.
+
+    When embedding is enabled, compute embedding and upsert to Qdrant.
+    """
     _ensure_trip_ownership(db, trip_id, user_id)
     entry = KBEntry(
         trip_id=trip_id,
@@ -36,6 +42,25 @@ def create_kb_entry(
         meta=meta or {},
     )
     db.add(entry)
+    db.flush()  # get entry.id
+
+    # Optional embedding + vector store upsert
+    if settings.ENABLE_EMBEDDING and settings.OLLAMA_URL:
+        doc_text = "\n\n".join([t for t in [title or "", content or ""] if t])
+        vec = embed_texts([doc_text])[0]
+        entry.embedding = vec
+        try:
+            upsert_points([entry.id], [vec], [
+                {
+                    "entry_id": entry.id,
+                    "trip_id": trip_id,
+                    "title": title,
+                    "source": source,
+                }
+            ])
+        except Exception:
+            pass
+
     db.commit()
     db.refresh(entry)
     return entry
@@ -88,7 +113,7 @@ def update_kb_entry(
     content: Optional[str] = None,
     meta: Optional[dict] = None,
 ) -> KBEntry:
-    """Update a KB entry fields."""
+    """Update a KB entry fields. Optionally refresh embedding & vector store."""
     entry = get_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=user_id)
     if source is not None:
         entry.source = source
@@ -98,6 +123,22 @@ def update_kb_entry(
         entry.content = content
     if meta is not None:
         entry.meta = meta
+    # Optional embedding refresh
+    if settings.ENABLE_EMBEDDING and settings.OLLAMA_URL and (title is not None or content is not None):
+        doc_text = "\n\n".join([t for t in [entry.title or "", entry.content or ""] if t])
+        vec = embed_texts([doc_text])[0]
+        entry.embedding = vec
+        try:
+            upsert_points([entry.id], [vec], [
+                {
+                    "entry_id": entry.id,
+                    "trip_id": entry.trip_id,
+                    "title": entry.title,
+                    "source": entry.source,
+                }
+            ])
+        except Exception:
+            pass
     db.add(entry)
     db.commit()
     db.refresh(entry)
