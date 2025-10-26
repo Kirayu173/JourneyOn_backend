@@ -1,0 +1,18 @@
+# FastAPI and related
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.9
+redis==5.0.8
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+mypy==1.11.2
+pytest==8.3.2
+httpx==0.27.2
+watchfiles==0.24.0
+loguru==0.7.2
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+email-validator==2.1.0.post1
+bcrypt==3.2.0

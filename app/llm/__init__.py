@@ -1,0 +1,1 @@
+"""LLM adapters (OpenAI, Ollama, Local) — stubs for now."""

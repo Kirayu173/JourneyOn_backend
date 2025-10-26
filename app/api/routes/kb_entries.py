@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+from typing import List
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.db.session import get_db
+from app.schemas.common import Envelope
+from app.schemas.kb_schemas import KBEntryCreate, KBEntryUpdate, KBEntryResponse
+from app.services.kb_service import (
+    create_kb_entry,
+    get_kb_entries,
+    update_kb_entry,
+    delete_kb_entry,
+)
+
+router = APIRouter(prefix="/trips/{trip_id}/kb_entries", tags=["kb_entries"])
+
+
+@router.post("", response_model=Envelope[KBEntryResponse])
+def create_kb_entry_endpoint(
+    trip_id: int,
+    req: KBEntryCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[KBEntryResponse]:
+    entry = create_kb_entry(
+        db,
+        trip_id=trip_id,
+        user_id=current_user.id,
+        source=req.source,
+        title=req.title,
+        content=req.content,
+        meta=req.meta,
+    )
+    return Envelope(code=0, msg="ok", data=KBEntryResponse.model_validate(entry))
+
+
+@router.get("", response_model=Envelope[List[KBEntryResponse]])
+def list_kb_entries_endpoint(
+    trip_id: int,
+    q: str | None = None,
+    source: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[list[KBEntryResponse]]:
+    entries = get_kb_entries(
+        db,
+        trip_id=trip_id,
+        user_id=current_user.id,
+        q=q,
+        source=source,
+        limit=limit,
+        offset=offset,
+    )
+    return Envelope(code=0, msg="ok", data=[KBEntryResponse.model_validate(e) for e in entries])
+
+
+@router.patch("/{entry_id}", response_model=Envelope[KBEntryResponse])
+def update_kb_entry_endpoint(
+    trip_id: int,
+    entry_id: int,
+    req: KBEntryUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[KBEntryResponse]:
+    entry = update_kb_entry(
+        db,
+        entry_id=entry_id,
+        trip_id=trip_id,
+        user_id=current_user.id,
+        source=req.source,
+        title=req.title,
+        content=req.content,
+        meta=req.meta,
+    )
+    return Envelope(code=0, msg="ok", data=KBEntryResponse.model_validate(entry))
+
+
+@router.delete("/{entry_id}")
+def delete_kb_entry_endpoint(
+    trip_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> Envelope[bool]:
+    delete_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=current_user.id)
+    return Envelope(code=0, msg="ok", data=True)

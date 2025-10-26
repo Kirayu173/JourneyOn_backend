@@ -1,0 +1,1 @@
+"""JourneyOn FastAPI application package."""
