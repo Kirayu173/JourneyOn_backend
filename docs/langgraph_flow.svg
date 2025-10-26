@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="200" viewBox="0 0 720 200">
+  <style>
+    .title { font: bold 20px sans-serif; }
+    .stage { fill: #f0f4ff; stroke: #4a64d8; stroke-width: 2; rx: 12; ry: 12; }
+    .stage-text { font: 16px sans-serif; fill: #1f2a56; }
+    .arrow { stroke: #4a64d8; stroke-width: 3; marker-end: url(#arrowhead); }
+    .label { font: 14px sans-serif; fill: #4a64d8; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" fill="#4a64d8">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+  </defs>
+  <text x="360" y="32" text-anchor="middle" class="title">JourneyOn LangGraph 主流程</text>
+  <rect class="stage" x="60" y="70" width="170" height="80" />
+  <text x="145" y="115" text-anchor="middle" class="stage-text">PreTrip Agent</text>
+  <rect class="stage" x="275" y="70" width="170" height="80" />
+  <text x="360" y="115" text-anchor="middle" class="stage-text">OnTrip Agent</text>
+  <rect class="stage" x="490" y="70" width="170" height="80" />
+  <text x="575" y="115" text-anchor="middle" class="stage-text">PostTrip Agent</text>
+  <line class="arrow" x1="230" y1="110" x2="275" y2="110" />
+  <line class="arrow" x1="445" y1="110" x2="490" y2="110" />
+  <text x="252" y="95" class="label">用户确认</text>
+  <text x="467" y="95" class="label">用户确认</text>
+  <text x="575" y="165" text-anchor="middle" class="label">结束 → END</text>
+</svg>
