@@ -4,50 +4,52 @@ from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Type
 
 from pydantic import BaseModel, Field
 
+class _StructuredToolFallback:
+    """Lightweight fallback StructuredTool implementation."""
+
+    def __init__(
+        self,
+        *,
+        func: Callable[..., Any] | None = None,
+        coroutine: Callable[..., Awaitable[Any]] | None = None,
+        name: str | None = None,
+        description: str = "",
+        args_schema: Type[BaseModel] | None = None,
+        **_: Any,
+    ) -> None:
+        self.func = func
+        self.coroutine = coroutine
+        self.name = name or self.__class__.__name__
+        self.description = description
+        self.args_schema = args_schema
+
+    def invoke(self, input: Mapping[str, Any] | Any) -> Any:
+        if self.coroutine is not None:
+            raise RuntimeError("async_only_tool")
+        if self.func is None:
+            raise NotImplementedError("StructuredTool func not implemented")
+        if isinstance(input, Mapping):
+            return self.func(**dict(input))
+        return self.func(input)
+
+    async def ainvoke(self, input: Mapping[str, Any] | Any) -> Any:
+        if self.coroutine is None:
+            raise NotImplementedError("StructuredTool coroutine not implemented")
+        if isinstance(input, Mapping):
+            return await self.coroutine(**dict(input))
+        return await self.coroutine(input)
+
+    def run(self, input: Mapping[str, Any] | Any) -> Any:
+        return self.invoke(input)
+
+    async def arun(self, input: Mapping[str, Any] | Any) -> Any:
+        return await self.ainvoke(input)
+
+
 try:
     from langchain_core.tools import StructuredTool as _StructuredTool
 except ImportError:  # pragma: no cover - fallback for environments without langchain_core
-
-    class _StructuredTool:  # type: ignore[override]
-        """Lightweight fallback StructuredTool implementation."""
-
-        def __init__(
-            self,
-            *,
-            func: Callable[..., Any] | None = None,
-            coroutine: Callable[..., Awaitable[Any]] | None = None,
-            name: str | None = None,
-            description: str = "",
-            args_schema: Type[BaseModel] | None = None,
-            **_: Any,
-        ) -> None:
-            self.func = func
-            self.coroutine = coroutine
-            self.name = name or self.__class__.__name__
-            self.description = description
-            self.args_schema = args_schema
-
-        def invoke(self, input: Mapping[str, Any] | Any) -> Any:
-            if self.coroutine is not None:
-                raise RuntimeError("async_only_tool")
-            if self.func is None:
-                raise NotImplementedError("StructuredTool func not implemented")
-            if isinstance(input, Mapping):
-                return self.func(**dict(input))
-            return self.func(input)
-
-        async def ainvoke(self, input: Mapping[str, Any] | Any) -> Any:
-            if self.coroutine is None:
-                raise NotImplementedError("StructuredTool coroutine not implemented")
-            if isinstance(input, Mapping):
-                return await self.coroutine(**dict(input))
-            return await self.coroutine(input)
-
-        def run(self, input: Mapping[str, Any] | Any) -> Any:
-            return self.invoke(input)
-
-        async def arun(self, input: Mapping[str, Any] | Any) -> Any:
-            return await self.ainvoke(input)
+    _StructuredTool = _StructuredToolFallback
 
 
 class StandardToolInput(BaseModel):

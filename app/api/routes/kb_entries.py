@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.kb_schemas import KBEntryCreate, KBEntryUpdate, KBEntryResponse
@@ -28,7 +29,7 @@ async def create_kb_entry_endpoint(
     trip_id: int,
     req: KBEntryCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[KBEntryResponse]:
     entry = create_kb_entry(
         db,
@@ -51,8 +52,8 @@ def list_kb_entries_endpoint(
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-) -> Envelope[list[KBEntryResponse]]:
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[KBEntryResponse]]:
     entries = get_kb_entries(
         db,
         trip_id=trip_id,
@@ -71,7 +72,7 @@ async def update_kb_entry_endpoint(
     entry_id: int,
     req: KBEntryUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[KBEntryResponse]:
     entry = update_kb_entry(
         db,
@@ -92,7 +93,7 @@ async def delete_kb_entry_endpoint(
     trip_id: int,
     entry_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[bool]:
     delete_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=current_user.id)
     asyncio.create_task(remove_entry_vector(entry_id))

@@ -5,12 +5,15 @@ from binascii import Error as BinasciiError
 from io import BytesIO
 from pathlib import Path
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.report_schemas import ReportResponse
@@ -32,7 +35,7 @@ def upload_report(
     trip_id: int,
     payload: ReportUploadRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[ReportResponse]:
     try:
         file_bytes = b64decode(payload.data)
@@ -68,12 +71,12 @@ def upload_report(
     return Envelope(code=0, msg="ok", data=ReportResponse.model_validate(report))
 
 
-@router.get("", response_model=Envelope[list[ReportResponse]])
+@router.get("", response_model=Envelope[List[ReportResponse]])
 def list_reports(
     trip_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-) -> Envelope[list[ReportResponse]]:
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[ReportResponse]]:
     reports = report_service.list_reports(db, trip_id=trip_id, user_id=current_user.id)
     return Envelope(
         code=0,
@@ -87,7 +90,7 @@ def get_report(
     trip_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[ReportResponse]:
     report = report_service.get_report(
         db,
@@ -103,7 +106,7 @@ def download_report(
     trip_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     report = report_service.get_report(
         db,
@@ -128,7 +131,7 @@ def delete_report(
     trip_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[None]:
     storage_key = report_service.delete_report(
         db,

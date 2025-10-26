@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from fastapi import HTTPException
 from qdrant_client import AsyncQdrantClient
@@ -247,7 +247,7 @@ async def remove_entry_vector(entry_id: int) -> None:
         logger.exception("qdrant_delete_failed", extra={"entry_id": entry_id})
 
 
-async def rerank_results(query: str, results: list[dict[str, object]]) -> list[dict[str, object]]:
+async def rerank_results(query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not results:
         return results
     if not settings.OLLAMA_RERANK_ENABLED:
@@ -256,17 +256,32 @@ async def rerank_results(query: str, results: list[dict[str, object]]) -> list[d
         reranker = RerankService()
     except RuntimeError:
         return results
-    documents = [str((item.get("payload") or {}).get("content", "")) for item in results]
+    documents: list[str] = []
+    for item in results:
+        payload = item.get("payload")
+        content = ""
+        if isinstance(payload, dict):
+            raw_content = payload.get("content")
+            if raw_content is not None:
+                content = str(raw_content)
+        documents.append(content)
     scores = await reranker.rerank(query, documents)
     score_map = {res.index: res.score for res in scores}
     if not score_map:
         return results
     indexed = list(enumerate(results))
-    ranked = sorted(
-        indexed,
-        key=lambda pair: score_map.get(pair[0], float(pair[1].get("score", 0.0))),
-        reverse=True,
-    )
+    def _score(pair: tuple[int, dict[str, Any]]) -> float:
+        fallback = pair[1].get("score", 0.0)
+        if isinstance(fallback, (int, float)):
+            fallback_score = float(fallback)
+        else:
+            try:
+                fallback_score = float(fallback)
+            except (TypeError, ValueError):
+                fallback_score = 0.0
+        return score_map.get(pair[0], fallback_score)
+
+    ranked = sorted(indexed, key=_score, reverse=True)
     return [item for _, item in ranked]
 
 

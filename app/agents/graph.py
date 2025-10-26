@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Protocol
 
 from app.agents.base_agent import AgentContext, AgentRunResult
 from app.agents.on_agent.graph import OnTripAgentGraph
 from app.agents.post_agent.graph import PostTripAgentGraph
 from app.agents.pre_agent.graph import PreTripAgentGraph
 from app.db.models import TripStageEnum
+
+
+class StageGraph(Protocol):
+    async def run(self, context: AgentContext) -> AgentRunResult:
+        ...
 
 
 class AgentOrchestratorGraph:
@@ -19,7 +24,7 @@ class AgentOrchestratorGraph:
     ]
 
     def __init__(self) -> None:
-        self._nodes: Dict[TripStageEnum, object] = {
+        self._nodes: Dict[TripStageEnum, StageGraph] = {
             TripStageEnum.pre: PreTripAgentGraph(),
             TripStageEnum.on: OnTripAgentGraph(),
             TripStageEnum.post: PostTripAgentGraph(),
