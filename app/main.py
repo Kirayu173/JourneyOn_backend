@@ -17,8 +17,10 @@ from app.api.routes.conversations import router as conversations_router
 from app.api.routes.itinerary_items import router as itinerary_router
 from app.api.routes.kb_entries import router as kb_router
 from app.api.routes.kb_vector import router as kb_vector_router
+from app.api.routes.reports import router as reports_router
 from app.api.routes.user_tags import router as user_tags_router
 from app.api.routes.system import router as system_router
+from app.api.routes.audit_logs import router as audit_router
 from app.db.session import init_db
 
 
@@ -65,8 +67,10 @@ app.include_router(conversations_router, prefix="/api")
 app.include_router(itinerary_router, prefix="/api")
 app.include_router(kb_router, prefix="/api")
 app.include_router(kb_vector_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
 app.include_router(user_tags_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
+app.include_router(audit_router, prefix="/api")
 
 
 # Removed deprecated on_event; lifespan handles startup

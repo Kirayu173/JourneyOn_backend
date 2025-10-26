@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator, List
 
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import Orchestrator
-from app.schemas.agent_schemas import (
-    AgentEvent,
-    AgentEventType,
-    AgentMessage,
-    AgentMessageRole,
-    AgentToolCall,
-    AgentToolResult,
-)
+from app.schemas.agent_schemas import AgentEvent, AgentEventType, AgentMessage, AgentMessageRole
 
 
 class StreamingAgentSession:
@@ -46,7 +38,6 @@ class StreamingAgentSession:
             event=AgentEventType.RUN_STARTED,
             data={"run_id": run_id, "stage": stage},
         )
-        await asyncio.sleep(0)
 
         # Emit echo of user message for downstream consumers
         yield AgentEvent(
@@ -54,60 +45,46 @@ class StreamingAgentSession:
             event=AgentEventType.MESSAGE,
             message=AgentMessage(role=AgentMessageRole.USER, content=message_text),
         )
-        await asyncio.sleep(0)
-
-        reply = self.orchestrator.handle_message(
+        stream = self.orchestrator.stream(
             trip_id=trip_id,
             stage=stage,
             message=message_text,
             user_id=user_id,
         )
 
-        tool_inputs: dict[str, Any] = reply.get("tool_inputs", {})
-
-        for tool_name in reply.get("tools", []):
-            tool_id = uuid.uuid4().hex
-            tool_call = AgentToolCall(id=tool_id, name=tool_name, input=tool_inputs.get(tool_name, {}))
-            yield AgentEvent(
-                sequence=_next_sequence(),
-                event=AgentEventType.TOOL_CALL,
-                tool_call=tool_call,
-            )
-            await asyncio.sleep(0)
-
-            result_payload = reply.get("tool_results", {}).get(tool_name)
-            if result_payload is not None:
-                tool_result = AgentToolResult(id=tool_id, output={"result": result_payload})
+        full_chunks: List[str] = []
+        async for chunk in stream:
+            if chunk.delta:
+                full_chunks.append(chunk.delta)
                 yield AgentEvent(
                     sequence=_next_sequence(),
-                    event=AgentEventType.TOOL_RESULT,
-                    tool_result=tool_result,
+                    event=AgentEventType.MESSAGE,
+                    message=AgentMessage(
+                        role=AgentMessageRole.ASSISTANT,
+                        content=chunk.delta,
+                        meta={"delta": True, "run_id": chunk.run_id, "usage": chunk.usage or {}},
+                    ),
                 )
-                await asyncio.sleep(0)
+            if chunk.done:
+                break
 
-        assistant_meta = {
-            "source": reply.get("source"),
-            "task_suggestions": reply.get("task_suggestions", []),
-            "itinerary_suggestions": reply.get("itinerary_suggestions", []),
-        }
-
+        final_message = "".join(full_chunks)
         yield AgentEvent(
             sequence=_next_sequence(),
             event=AgentEventType.MESSAGE,
             message=AgentMessage(
                 role=AgentMessageRole.ASSISTANT,
-                content=reply.get("reply", ""),
-                meta=assistant_meta,
+                content=final_message,
+                meta={"delta": False, "run_id": run_id},
             ),
         )
-        await asyncio.sleep(0)
 
         yield AgentEvent(
             sequence=_next_sequence(),
             event=AgentEventType.RUN_COMPLETED,
             data={
                 "run_id": run_id,
-                "tool_count": len(reply.get("tools", [])),
+                "tool_count": 0,
             },
         )
 
