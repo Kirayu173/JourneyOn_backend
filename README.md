@@ -12,6 +12,9 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
 - Error handling middleware returning uniform envelope `{code, msg, data}`
 - Typed settings (`pydantic-settings`) and structured logging
 - Mypy config and pytest tests
+- Redis cache helpers with shared rate-limiting/search cache for knowledge base vector search
+- Local file storage abstraction with `/api/trips/{trip_id}/reports` endpoints (base64 upload, metadata list, download, delete)
+- Audit logging service and admin `/api/audit-logs` endpoint for operational tracing
 
 ## Quick Start (Docker)
 
@@ -40,6 +43,14 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
   - `REDIS_URL`
   - `QDRANT_URL` (optional)
   - `SECRET_KEY`, `LOG_LEVEL`
+  - `STORAGE_BACKEND`, `LOCAL_STORAGE_PATH`
+  - Embedding provider controls: `ENABLE_EMBEDDING`, `EMBEDDING_PROVIDER`, `OLLAMA_*`, `OPENAI_*`
+
+## File Storage and Reports API
+- Upload reports using base64 payloads via `POST /api/trips/{trip_id}/reports` (fields: `filename`, `content_type`, `data`, optional `format`).
+- Download stored files with `GET /api/trips/{trip_id}/reports/{report_id}/download`.
+- Manage metadata with list/get/delete endpoints under the same prefix.
+- Storage backend defaults to local disk (configurable via settings); keys are persisted in the new `reports` table.
 
 ## Testing & Type Checking
 ```bash
