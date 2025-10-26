@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional, Sequence
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Trip, TripStage, TripStageEnum, AuditLog
-from datetime import datetime, timezone
+from app.db.models import Trip, TripStage, TripStageEnum
+from app.services.audit_service import log_action
 
 
 def get_trip(db: Session, trip_id: int, user_id: int) -> Optional[Trip]:
@@ -54,6 +55,13 @@ def create_trip(db: Session, trip_data: dict, user_id: int) -> Trip:
         for s in stages:
             db.add(s)
 
+        log_action(
+            db,
+            action="trip_created",
+            user_id=user_id,
+            trip_id=trip.id,
+            detail=trip.title or "",
+        )
         db.commit()
         db.refresh(trip)
     except Exception:
@@ -73,6 +81,13 @@ def update_trip_stage(db: Session, trip_id: int, user_id: int, new_stage: str | 
     )
     trip.current_stage = stage_enum
     db.add(trip)
+    log_action(
+        db,
+        action="trip_stage_updated",
+        user_id=user_id,
+        trip_id=trip_id,
+        detail=f"{trip.current_stage.value}",
+    )
     db.commit()
     db.refresh(trip)
     return trip
@@ -138,15 +153,14 @@ def update_stage_status(
     else:
         raise ValueError("invalid_transition")
 
-    # Audit log
-    log = AuditLog(
+    db.add(stage)
+    log_action(
+        db,
+        action="trip_stage_status_updated",
         user_id=user_id,
         trip_id=trip_id,
-        action="trip_stage_status_updated",
         detail=f"{stage_value}:{current}->{stage.status}",
     )
-    db.add(stage)
-    db.add(log)
     db.commit()
     db.refresh(stage)
     return stage

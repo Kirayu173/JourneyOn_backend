@@ -74,6 +74,7 @@ class Trip(Base):
     stages = relationship("TripStage", back_populates="trip", cascade="all, delete-orphan")
     itinerary_items = relationship("ItineraryItem", back_populates="trip", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="trip", cascade="all, delete-orphan")
+    reports = relationship("Report", back_populates="trip", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="trip", cascade="all, delete-orphan")
 
 
@@ -177,3 +178,19 @@ class AuditLog(Base):
     action: str = Column(String(64), nullable=False)
     detail: Optional[str] = Column(Text)
     created_at: datetime = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: int = Column(Integer, primary_key=True)
+    trip_id: int = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
+    filename: Optional[str] = Column(String(255))
+    format: Optional[str] = Column(String(32))
+    content_type: Optional[str] = Column(String(128))
+    file_size: Optional[int] = Column(BigInteger)
+    storage_key: str = Column(String(512), nullable=False)
+    meta: dict = Column(JSON, default={})
+    created_at: datetime = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    trip = relationship("Trip", back_populates="reports")
