@@ -6,11 +6,11 @@ from app.core.config import settings
 
 
 class MemoryService:
-    """Thin wrapper around develop_mem0 Memory with lazy init.
+    """Thin wrapper around mem0 Memory with lazy init.
 
     Notes:
     - Completely disabled unless `settings.MEMORY_ENABLED` is True.
-    - Avoids importing develop_mem0 at module import time to prevent optional
+    - Avoids importing mem0 at module import time to prevent optional
       dependency issues in environments without LLM/embedding providers.
     """
 
@@ -142,6 +142,17 @@ class MemoryService:
             return None
         try:
             return self._memory.delete(memory_id)
+        except Exception:
+            return None
+
+    def get(self, memory_id: str) -> Dict[str, Any] | None:
+        if not self._enabled:
+            return None
+        self._ensure_memory()
+        if self._memory is None:
+            return None
+        try:
+            return self._memory.get(memory_id)
         except Exception:
             return None
 

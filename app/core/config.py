@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     STORAGE_BACKEND: str = "local"
     LOCAL_STORAGE_PATH: str = "storage"
 
-    # Memory layer (develop_mem0) integration
+    # Memory layer (mem0) integration
     MEMORY_ENABLED: bool = False
     MEMORY_INFER: bool = False
     MEMORY_COLLECTION_NAME: str = "memories"

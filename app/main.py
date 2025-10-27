@@ -23,6 +23,7 @@ from app.api.routes.reports import router as reports_router
 from app.api.routes.user_tags import router as user_tags_router
 from app.api.routes.system import router as system_router
 from app.api.routes.audit_logs import router as audit_router
+from app.api.routes.memories import router as memories_router
 from app.db.session import init_db
 
 
@@ -73,6 +74,7 @@ app.include_router(reports_router, prefix="/api")
 app.include_router(user_tags_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
+app.include_router(memories_router, prefix="/api")
 
 
 # 已移除已弃用的on_event；生命周期处理启动

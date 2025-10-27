@@ -46,6 +46,23 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
 - LLM controls: `LLM_PROVIDER` (`ollama`/`zhipu`), `OLLAMA_CHAT_MODEL`, `ZHIPU_API_KEY`, `ZHIPU_BASE_URL`, retry knobs (`LLM_MAX_RETRIES`, `LLM_RETRY_BASE_DELAY`, `LLM_REQUEST_TIMEOUT`)
 - Embedding/RAG controls: `ENABLE_EMBEDDING`, `EMBEDDING_CONCURRENCY`, `OLLAMA_EMBED_MODEL`, `OLLAMA_RERANK_MODEL`, `OLLAMA_RERANK_ENABLED`
 
+### Memory Layer (mem0)
+- Feature flags:
+  - `MEMORY_ENABLED` (default: false)
+  - `MEMORY_INFER` (default: false) — turn on LLM-based fact extraction/merge
+- Storage/config:
+  - `MEMORY_COLLECTION_NAME` (default: `memories`)
+  - `MEMORY_HISTORY_DB_PATH` (optional override; default in user home)
+- Providers used when enabled:
+  - Vector store: Qdrant via `QDRANT_URL`/`QDRANT_API_KEY` and `VECTOR_DIM`
+  - Embeddings: `EMBEDDING_PROVIDER` with Ollama (`OLLAMA_URL`, `OLLAMA_EMBED_MODEL`) or OpenAI
+  - LLM for inference: `LLM_PROVIDER` with Ollama (`OLLAMA_URL`, `OLLAMA_CHAT_MODEL`) or OpenAI
+
+The memory layer is off by default. When enabled, you can import and use `get_memory_service()` from `app/services/memory_service.py` to add/search/update/delete memories with user/agent/run scoping and history.
+
+Debug endpoints (when enabled): `/api/memories/*` — add/search/get/update/delete/history/delete_all`.
+See `docs/agent_development_guide.md` for end-to-end usage in orchestrator flows.
+
 ## File Storage and Reports API
 - Upload reports using base64 payloads via `POST /api/trips/{trip_id}/reports` (fields: `filename`, `content_type`, `data`, optional `format`).
 - Download stored files with `GET /api/trips/{trip_id}/reports/{report_id}/download`.
