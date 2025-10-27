@@ -32,6 +32,7 @@ def create_user_tag_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[UserTagResponse]:
+    """创建用户标签。"""
     item = create_user_tag(
         db,
         user_id=current_user.id,
@@ -51,6 +52,7 @@ def list_user_tags_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[UserTagResponse]]:
+    """获取用户标签列表。"""
     items = get_user_tags(
         db,
         user_id=current_user.id,
@@ -69,6 +71,7 @@ def update_user_tag_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[UserTagResponse]:
+    """更新用户标签。"""
     item = update_user_tag(
         db,
         user_id=current_user.id,
@@ -86,6 +89,7 @@ def delete_user_tag_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[bool]:
+    """删除用户标签。"""
     delete_user_tag(db, user_id=current_user.id, tag_id=tag_id)
     return Envelope(code=0, msg="ok", data=True)
 
@@ -96,6 +100,7 @@ def bulk_upsert_user_tags_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[UserTagResponse]]:
+    """批量创建或更新用户标签。"""
     items = bulk_upsert_user_tags(
         db,
         user_id=current_user.id,

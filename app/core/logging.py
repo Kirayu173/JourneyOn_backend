@@ -11,17 +11,17 @@ from app.core.request_context import request_id_var
 
 class RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        # attach request_id if available
+        # 如果可用，附加request_id
         rid = request_id_var.get()
         setattr(record, "request_id", rid or "-")
         return True
 
 
 def setup_logging(level: str = "info") -> None:
-    """Configure structured logging with optional file rotation and request correlation."""
+    """配置结构化日志记录，包含可选的日志文件轮转和请求关联。"""
     level_upper = level.upper()
 
-    # Ensure log directory exists if writing to file
+    # 如果写入文件，确保日志目录存在
     handlers: dict[str, dict[str, Any]] = {
         "default": {
             "class": "logging.StreamHandler",
@@ -79,5 +79,5 @@ def setup_logging(level: str = "info") -> None:
         }
     )
     logging.getLogger(__name__).info(
-        "Logging configured", extra={"level": level_upper}
+        "日志配置完成", extra={"level": level_upper}
     )

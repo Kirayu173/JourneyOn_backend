@@ -24,6 +24,7 @@ def get_audit_logs(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> Envelope[List[AuditLogResponse]]:
+    """获取审计日志列表。"""
     limit = max(1, min(limit, 500))
     logs = list_logs(db, limit=limit, offset=offset, user_id=user_id, trip_id=trip_id)
     return Envelope(

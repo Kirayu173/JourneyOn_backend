@@ -21,9 +21,9 @@ class LogLevelPatch(BaseModel):
 def patch_log_level(
     req: LogLevelPatch, current_user: User = Depends(get_current_user)
 ) -> Envelope[Dict[str, Any]]:
-    """Adjust application root log level at runtime.
-
-    Accepts levels like debug, info, warning, error.
+    """运行时调整应用程序根日志级别。
+    
+    接受debug、info、warning、error等日志级别。
     """
     level_upper = req.level.upper()
     if level_upper not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:

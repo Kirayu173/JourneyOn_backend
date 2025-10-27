@@ -31,6 +31,7 @@ def create_itinerary_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[ItineraryItemResponse]:
+    """创建新的行程项。"""
     item = create_item(
         db,
         trip_id=trip_id,
@@ -55,6 +56,7 @@ def list_itinerary_items(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[ItineraryItemResponse]]:
+    """获取行程项列表。"""
     items = get_items(db, trip_id=trip_id, user_id=current_user.id, day=day)
     return Envelope(code=0, msg="ok", data=[ItineraryItemResponse.model_validate(i) for i in items])
 
@@ -67,6 +69,7 @@ def patch_itinerary_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[ItineraryItemResponse]:
+    """更新行程项。"""
     updated = update_item(
         db,
         item_id=item_id,
@@ -91,5 +94,6 @@ def delete_itinerary_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[None]:
+    """删除行程项。"""
     delete_item(db, item_id=item_id, user_id=current_user.id)
     return Envelope(code=0, msg="ok", data=None)

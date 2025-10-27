@@ -12,20 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Register exception handlers to produce uniform envelope responses."""
+    """注册异常处理器以产生统一的信封响应。"""
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        logger.warning("HTTPException", extra={"path": str(request.url), "detail": exc.detail})
+        logger.warning("HTTP异常", extra={"path": str(request.url), "detail": exc.detail})
         return JSONResponse(status_code=exc.status_code, content={"code": exc.status_code, "msg": str(exc.detail), "data": None})
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        logger.warning("ValidationError", extra={"path": str(request.url), "errors": exc.errors()})
+        logger.warning("验证错误", extra={"path": str(request.url), "errors": exc.errors()})
         return JSONResponse(status_code=422, content={"code": 422, "msg": "validation_error", "data": exc.errors()})
 
     @app.middleware("http")
@@ -34,5 +34,5 @@ def register_exception_handlers(app: FastAPI) -> None:
             response = await call_next(request)
             return response
         except Exception as exc:
-            logger.exception("Unhandled exception", extra={"path": str(request.url)})
+            logger.exception("未处理的异常", extra={"path": str(request.url)})
             return JSONResponse(status_code=500, content={"code": 500, "msg": "internal_error", "data": str(exc)})

@@ -27,7 +27,7 @@ class LoginRequest(BaseModel):
 
 @router.post("/register")
 def register(req: RegisterRequest, db: Session = Depends(get_db)) -> Envelope[dict[str, Any]]:
-    """Register a new user, then issue a JWT token."""
+    """注册新用户，然后颁发JWT令牌。"""
     if not req.username or not req.password or not req.email:
         raise HTTPException(status_code=400, detail="invalid_registration_payload")
 
@@ -38,7 +38,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)) -> Envelope[di
 
 @router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)) -> Envelope[dict[str, Any]]:
-    """Authenticate by username/email and password, returning a JWT."""
+    """通过用户名/邮箱和密码进行身份验证，返回JWT令牌。"""
     if not req.username_or_email or not req.password:
         raise HTTPException(status_code=400, detail="invalid_login_payload")
 

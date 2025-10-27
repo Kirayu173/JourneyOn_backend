@@ -46,6 +46,7 @@ def create_trip_endpoint(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Envelope[dict[str, Any]]:
+    """创建新的行程。"""
     trip = create_trip(db, trip_data=req.model_dump(), user_id=user.id)
     return Envelope(
         code=0,
@@ -70,6 +71,7 @@ def list_trips_endpoint(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Envelope[List[dict[str, Any]]]:
+    """获取用户行程列表。"""
     trips = get_user_trips(db, user_id=user.id)
     items = [
         {
@@ -91,6 +93,7 @@ def get_trip_endpoint(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Envelope[dict[str, Any]]:
+    """获取单个行程详情。"""
     trip = get_trip(db, trip_id=trip_id, user_id=user.id)
     if not trip:
         raise HTTPException(status_code=404, detail="trip_not_found")
@@ -121,6 +124,7 @@ def update_trip_stage_endpoint(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Envelope[dict[str, Any]]:
+    """更新行程阶段。"""
     new_stage_value = req.new_stage.value if isinstance(req.new_stage, TripStageEnum) else req.new_stage
     try:
         updated = update_trip_stage(db, trip_id=trip_id, user_id=user.id, new_stage=new_stage_value)
@@ -149,6 +153,7 @@ def update_trip_stage_status_endpoint(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Envelope[dict[str, Any]]:
+    """更新行程阶段状态。"""
     try:
         updated = update_stage_status(
             db,

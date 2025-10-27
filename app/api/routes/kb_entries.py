@@ -31,6 +31,7 @@ async def create_kb_entry_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[KBEntryResponse]:
+    """创建新的知识库条目。"""
     entry = create_kb_entry(
         db,
         trip_id=trip_id,
@@ -54,6 +55,7 @@ def list_kb_entries_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[KBEntryResponse]]:
+    """获取知识库条目列表。"""
     entries = get_kb_entries(
         db,
         trip_id=trip_id,
@@ -74,6 +76,7 @@ async def update_kb_entry_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[KBEntryResponse]:
+    """更新知识库条目。"""
     entry = update_kb_entry(
         db,
         entry_id=entry_id,
@@ -95,6 +98,7 @@ async def delete_kb_entry_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[bool]:
+    """删除知识库条目。"""
     delete_kb_entry(db, entry_id=entry_id, trip_id=trip_id, user_id=current_user.id)
     asyncio.create_task(remove_entry_vector(entry_id))
     return Envelope(code=0, msg="ok", data=True)

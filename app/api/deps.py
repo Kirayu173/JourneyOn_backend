@@ -11,12 +11,12 @@ from app.db.session import get_db
 from app.db.models import User
 from app.core.security import verify_token
 
-# OAuth2 scheme used for token extraction (Authorization: Bearer <token>)
+# OAuth2方案用于令牌提取（Authorization: Bearer <token>）
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    """Decode JWT and load the current user from the database."""
+    """解码JWT并从数据库加载当前用户。"""
     try:
         payload = verify_token(token)
     except JWTError:
@@ -33,7 +33,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
-    """Ensure that the current user is an administrator."""
+    """确保当前用户是管理员。"""
 
     meta: Dict | None = getattr(user, "meta", None)
     is_admin = False

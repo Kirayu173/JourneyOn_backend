@@ -27,6 +27,7 @@ def create_trip_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[TaskResponse]:
+    """创建行程任务。"""
     task = create_task(
         db,
         trip_id=trip_id,
@@ -49,6 +50,7 @@ def list_trip_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[TaskResponse]]:
+    """获取行程任务列表。"""
     tasks = get_tasks_for_trip(db, trip_id=trip_id, user_id=current_user.id, stage=stage)
     return Envelope(code=0, msg="ok", data=[TaskResponse.model_validate(t) for t in tasks])
 
@@ -61,7 +63,8 @@ def patch_trip_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[TaskResponse]:
-    # Ensure trip ownership implicitly via service update
+    """更新行程任务。"""
+    # 通过服务更新隐式确保行程所有权
     try:
         updated = update_task(
             db,
@@ -77,7 +80,7 @@ def patch_trip_task(
         )
     except HTTPException as e:
         if e.status_code == 404:
-            # Either trip or task not found
+            # 行程或任务未找到
             raise
         raise
     return Envelope(code=0, msg="ok", data=TaskResponse.model_validate(updated))
@@ -90,5 +93,6 @@ def delete_trip_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[None]:
+    """删除行程任务。"""
     delete_task(db, task_id=task_id, user_id=current_user.id)
     return Envelope(code=0, msg="ok", data=None)

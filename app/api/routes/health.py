@@ -16,15 +16,15 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Basic health check for DB, Redis, and optional Qdrant."""
-    # DB check
+    """基础健康检查，检查数据库、Redis和可选的Qdrant。"""
+    # 数据库检查
     db_ok = True
     try:
         db.execute(text("SELECT 1"))
     except Exception:
         db_ok = False
 
-    # Redis check
+    # Redis检查
     redis_ok = None
     redis_url = settings.REDIS_URL
     if redis_url:
@@ -34,7 +34,7 @@ def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
         except Exception:
             redis_ok = False
 
-    # Qdrant check (optional)
+    # Qdrant检查（可选）
     qdrant_ok = None
     if settings.QDRANT_URL:
         try:

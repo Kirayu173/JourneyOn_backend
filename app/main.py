@@ -26,13 +26,13 @@ from app.api.routes.audit_logs import router as audit_router
 from app.db.session import init_db
 
 
-# Define lifespan to replace deprecated on_event startup
+# 定义生命周期以替代已弃用的on_event启动
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await init_db()
     except Exception:
-        logging.getLogger(__name__).warning("DB init skipped (error)", exc_info=True)
+        logging.getLogger(__name__).warning("数据库初始化跳过（错误）", exc_info=True)
     yield
 
 setup_logging(level=settings.LOG_LEVEL)
@@ -40,11 +40,11 @@ setup_logging(level=settings.LOG_LEVEL)
 app = FastAPI(
     title="JourneyOn Backend",
     version="0.1.0",
-    description="FastAPI skeleton for JourneyOn, aligned with design docs",
+    description="JourneyOn的FastAPI骨架，与设计文档对齐",
     lifespan=lifespan,
 )
 
-# CORS for development
+# 开发环境的CORS配置
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -55,11 +55,11 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
-# Request ID middleware for tracing
+# 请求ID中间件用于追踪
 from app.middleware.request_id import RequestIdMiddleware
 app.add_middleware(RequestIdMiddleware)
 
-# Routers
+# 路由器
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
@@ -75,8 +75,8 @@ app.include_router(system_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 
 
-# Removed deprecated on_event; lifespan handles startup
+# 已移除已弃用的on_event；生命周期处理启动
 
 @app.get("/", tags=["root"])
 async def root() -> dict[str, str]:
-    return {"message": "JourneyOn backend is running"}
+    return {"message": "JourneyOn后端正在运行"}

@@ -35,6 +35,7 @@ async def agent_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[Dict[str, Any]]:
+    """与AI代理进行同步聊天。"""
     conv = save_message(
         db,
         trip_id=req.trip_id,
@@ -74,6 +75,7 @@ async def agent_chat(
 
 
 async def _event_source(stream: AsyncGenerator[AgentEvent, None]) -> AsyncGenerator[bytes, None]:
+    """将代理事件转换为服务器发送事件格式。"""
     async for event in stream:
         payload = event.model_dump(mode="json")
         chunk = (
@@ -90,6 +92,7 @@ async def agent_chat_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
+    """与AI代理进行流式聊天。"""
     save_message(
         db,
         trip_id=req.trip_id,
@@ -115,6 +118,7 @@ async def agent_chat_stream(
 
 
 async def _receive_agent_payload(websocket: WebSocket) -> Optional[Dict[str, Any]]:
+    """从WebSocket接收代理有效载荷。"""
     try:
         message = await websocket.receive_json()
         if not isinstance(message, dict):
@@ -126,6 +130,7 @@ async def _receive_agent_payload(websocket: WebSocket) -> Optional[Dict[str, Any
 
 @router.websocket("/ws/chat")
 async def agent_chat_websocket(websocket: WebSocket) -> None:
+    """通过WebSocket与AI代理进行实时聊天。"""
     token = websocket.query_params.get("token") or websocket.headers.get("Authorization")
     if token and token.lower().startswith("bearer "):
         token = token[7:]

@@ -1,11 +1,10 @@
-"""Run connectivity checks for external JourneyOn services.
+"""运行JourneyOn外部服务的连接性检查。
 
-Usage:
+用法：
     python scripts/check_dependencies.py
 
-The script prints a concise status line for Redis, Qdrant, the embedding
-backend, and the configured LLM provider.  Use ``--json`` to emit structured
-output that can be consumed by CI pipelines.
+该脚本会为Redis、Qdrant、嵌入后端和配置的LLM提供程序打印简洁的状态行。
+使用``--json``参数可以输出结构化数据，供CI流水线使用。
 """
 
 from __future__ import annotations
@@ -35,8 +34,8 @@ def _format_line(result: DependencyCheckResult) -> str:
 
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Verify external service connectivity")
-    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON output")
+    parser = argparse.ArgumentParser(description="验证外部服务连接性")
+    parser.add_argument("--json", action="store_true", help="输出机器可读的JSON格式")
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
@@ -58,5 +57,5 @@ def main(argv: Iterable[str] | None = None) -> int:
     return asyncio.run(_run(args.json))
 
 
-if __name__ == "__main__":  # pragma: no cover - manual script entrypoint
+if __name__ == "__main__":  # pragma: no cover - 手动脚本入口点
     raise SystemExit(main())

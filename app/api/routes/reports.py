@@ -37,6 +37,7 @@ def upload_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[ReportResponse]:
+    """上传报告文件。"""
     try:
         file_bytes = b64decode(payload.data)
     except (BinasciiError, ValueError) as exc:
@@ -77,6 +78,7 @@ def list_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[ReportResponse]]:
+    """获取报告列表。"""
     reports = report_service.list_reports(db, trip_id=trip_id, user_id=current_user.id)
     return Envelope(
         code=0,
@@ -92,6 +94,7 @@ def get_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[ReportResponse]:
+    """获取单个报告详情。"""
     report = report_service.get_report(
         db,
         report_id=report_id,
@@ -108,6 +111,7 @@ def download_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:
+    """下载报告文件。"""
     report = report_service.get_report(
         db,
         report_id=report_id,
@@ -133,6 +137,7 @@ def delete_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[None]:
+    """删除报告。"""
     storage_key = report_service.delete_report(
         db,
         report_id=report_id,

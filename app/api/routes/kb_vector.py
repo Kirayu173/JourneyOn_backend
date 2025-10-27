@@ -119,6 +119,7 @@ def _get_embedding_service() -> EmbeddingService | None:
 
 @router.get("/health")
 async def kb_health() -> Envelope[dict[str, Any]]:
+    """知识库向量健康检查。"""
     qdrant = await get_qdrant_service()
     qdrant_ok = await qdrant.ensure_collection() if qdrant else False
     embedding_service = _get_embedding_service()
@@ -140,6 +141,7 @@ async def _search_impl(
     db: Session,
     current_user: User,
 ) -> Envelope[list[dict[str, Any]]]:
+    """知识库搜索实现。"""
     if await _rate_limited(current_user.id):
         raise HTTPException(status_code=429, detail="rate_limited")
 
@@ -211,6 +213,7 @@ async def kb_search(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[dict[str, Any]]]:
+    """POST方式搜索知识库。"""
     return await _search_impl(req, db, current_user)
 
 
@@ -223,6 +226,7 @@ async def kb_search_get(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[dict[str, Any]]]:
+    """GET方式搜索知识库。"""
     try:
         filter_payload = json.loads(filters) if filters else None
     except json.JSONDecodeError:

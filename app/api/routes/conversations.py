@@ -23,5 +23,6 @@ def list_conversations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[List[ConversationResponse]]:
+    """获取指定行程的对话历史。"""
     items = get_history(db, trip_id=trip_id, user_id=current_user.id, stage=stage, limit=limit)
     return Envelope(code=0, msg="ok", data=[ConversationResponse.model_validate(i) for i in items])

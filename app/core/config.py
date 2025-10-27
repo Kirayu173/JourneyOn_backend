@@ -4,9 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables.
+    """应用程序设置，从环境变量加载。
 
-    Provides typed configuration used across the application.
+    提供整个应用程序使用的类型化配置。
     """
 
     DATABASE_URL: str = "postgresql+psycopg2://app:secret@localhost:5432/journeyon"
@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     VECTOR_DIM: int = 1024
     VECTOR_DISTANCE: str = "Cosine"
 
-    # LLM provider configuration
-    LLM_PROVIDER: str = "ollama"  # Supported: "ollama", "zhipu"
+    # LLM 提供商配置
+    LLM_PROVIDER: str = "ollama"  # 支持: "ollama", "zhipu"
     LLM_MAX_RETRIES: int = 3
     LLM_RETRY_BASE_DELAY: float = 0.5
     LLM_REQUEST_TIMEOUT: float = 30.0
@@ -31,10 +31,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key"
     LOG_LEVEL: str = "info"
 
-    # Embedding providers
+    # 嵌入模型提供商
     ENABLE_EMBEDDING: bool = False
-    EMBEDDING_PROVIDER: str = "ollama"  # Supported: "ollama", "openai"
-    OLLAMA_URL: str | None = None  # e.g. http://localhost:11434
+    EMBEDDING_PROVIDER: str = "ollama"  # 支持: "ollama", "openai"
+    OLLAMA_URL: str | None = None  # 例如: http://localhost:11434
     OLLAMA_EMBED_MODEL: str = "bge-m3:latest"
     OLLAMA_RERANK_MODEL: str | None = None
     OLLAMA_RERANK_ENABLED: bool = True
@@ -44,19 +44,19 @@ class Settings(BaseSettings):
     EMBEDDING_CONCURRENCY: int = 4
     EMBEDDING_TIMEOUT: float = 30.0
 
-    # API safety
+    # API 安全配置
     RATE_LIMIT_PER_MINUTE: int = 60
 
-    # Logging to file and rotation
+    # 日志文件记录和轮转
     LOG_TO_FILE: bool = False
     LOG_FILE_PATH: str = "logs/app.log"
-    LOG_ROTATION_POLICY: str = "time"  # one of: "time", "size"
-    LOG_ROTATION_WHEN: str = "D"  # for TimedRotatingFileHandler
+    LOG_ROTATION_POLICY: str = "time"  # 可选: "time", "size"
+    LOG_ROTATION_WHEN: str = "D"  # 用于 TimedRotatingFileHandler
     LOG_ROTATION_INTERVAL: int = 1
     LOG_BACKUP_COUNT: int = 7
-    LOG_MAX_BYTES: int = 10 * 1024 * 1024  # for size-based rotation
+    LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 用于基于大小的轮转
 
-    # File storage
+    # 文件存储
     STORAGE_BACKEND: str = "local"
     LOCAL_STORAGE_PATH: str = "storage"
 
