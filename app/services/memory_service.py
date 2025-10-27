@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from app.core.config import settings
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from mem0.configs.base import MemoryConfig
+    from mem0.memory.main import Memory
 
 
 class MemoryService:
@@ -17,11 +21,14 @@ class MemoryService:
     def __init__(self) -> None:
         self._enabled = bool(getattr(settings, "MEMORY_ENABLED", False))
         self._infer = bool(getattr(settings, "MEMORY_INFER", False))
-        self._memory = None  # type: ignore[var-annotated]
+        self._memory: "Memory" | None = None
 
-    def _build_config(self):  # type: ignore[no-untyped-def]
+    def _build_config(self) -> "MemoryConfig":
         # Import locally to avoid import-time side effects when disabled
         from mem0.configs.base import MemoryConfig
+        from mem0.embeddings.configs import EmbedderConfig
+        from mem0.llms.configs import LlmConfig
+        from mem0.vector_stores.configs import VectorStoreConfig
 
         # Vector store configuration (Qdrant by default)
         vector_provider = "qdrant"
@@ -62,9 +69,9 @@ class MemoryService:
         history_db_path = getattr(settings, "MEMORY_HISTORY_DB_PATH", None)
 
         return MemoryConfig(
-            vector_store={"provider": vector_provider, "config": vector_cfg},
-            embedder={"provider": embedder_provider, "config": embedder_cfg},
-            llm={"provider": llm_provider, "config": llm_cfg},
+            vector_store=VectorStoreConfig(provider=vector_provider, config=vector_cfg),
+            embedder=EmbedderConfig(provider=embedder_provider, config=embedder_cfg),
+            llm=LlmConfig(provider=llm_provider, config=llm_cfg),
             history_db_path=history_db_path or MemoryConfig().history_db_path,
         )
 
@@ -93,7 +100,7 @@ class MemoryService:
         if self._memory is None:
             return None
         try:
-            return self._memory.add(
+            result = self._memory.add(
                 messages,
                 user_id=user_id,
                 agent_id=agent_id,
@@ -101,6 +108,7 @@ class MemoryService:
                 metadata=metadata or {},
                 infer=self._infer if infer is None else infer,
             )
+            return cast(Dict[str, Any], result)
         except Exception:
             # Avoid raising to upstream flows; operate best-effort
             return None
@@ -119,7 +127,13 @@ class MemoryService:
         if self._memory is None:
             return []
         try:
-            return self._memory.search(query, limit=top_k, filters=filters or {}, threshold=threshold)
+            result = self._memory.search(
+                query,
+                limit=top_k,
+                filters=filters or {},
+                threshold=threshold,
+            )
+            return cast(List[Dict[str, Any]], result)
         except Exception:
             return []
 
@@ -130,7 +144,7 @@ class MemoryService:
         if self._memory is None:
             return None
         try:
-            return self._memory.update(memory_id, text)
+            return cast(Dict[str, Any], self._memory.update(memory_id, text))
         except Exception:
             return None
 
@@ -141,7 +155,7 @@ class MemoryService:
         if self._memory is None:
             return None
         try:
-            return self._memory.delete(memory_id)
+            return cast(Dict[str, Any], self._memory.delete(memory_id))
         except Exception:
             return None
 
@@ -152,7 +166,7 @@ class MemoryService:
         if self._memory is None:
             return None
         try:
-            return self._memory.get(memory_id)
+            return cast(Dict[str, Any], self._memory.get(memory_id))
         except Exception:
             return None
 
@@ -163,11 +177,12 @@ class MemoryService:
         if self._memory is None:
             return None
         try:
-            return self._memory.delete_all(
+            result = self._memory.delete_all(
                 user_id=filters.get("user_id"),
                 agent_id=filters.get("agent_id"),
                 run_id=filters.get("run_id"),
             )
+            return cast(Dict[str, Any], result)
         except Exception:
             return None
 
@@ -178,7 +193,8 @@ class MemoryService:
         if self._memory is None:
             return []
         try:
-            return self._memory.history(memory_id)
+            result = self._memory.history(memory_id)
+            return cast(List[Dict[str, Any]], result)
         except Exception:
             return []
 
