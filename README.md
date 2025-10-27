@@ -58,6 +58,21 @@ pytest
 mypy app
 ```
 
+## External Dependency Verification
+
+Run lightweight connectivity checks for Redis, Qdrant, embeddings, and the LLM
+provider before developing new agent flows:
+
+```bash
+python scripts/check_dependencies.py
+```
+
+Use `--json` to emit machine-readable output that can be plugged into CI jobs:
+
+```bash
+python scripts/check_dependencies.py --json
+```
+
 ## Project Structure
 ```
 app/
