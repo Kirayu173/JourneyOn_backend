@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     STORAGE_BACKEND: str = "local"
     LOCAL_STORAGE_PATH: str = "storage"
 
+    # Memory layer (develop_mem0) integration
+    MEMORY_ENABLED: bool = False
+    MEMORY_INFER: bool = False
+    MEMORY_COLLECTION_NAME: str = "memories"
+    MEMORY_HISTORY_DB_PATH: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
