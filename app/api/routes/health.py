@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-import redis
 import httpx
+import redis
+from fastapi import APIRouter, Depends
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -14,22 +15,24 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-def health_check(db: Session = Depends(get_db)) -> dict[str, Any]:
+def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Basic health check for DB, Redis, and optional Qdrant."""
     # DB check
     db_ok = True
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
     except Exception:
         db_ok = False
 
     # Redis check
-    redis_ok = True
-    try:
-        r = redis.Redis.from_url(settings.REDIS_URL)
-        redis_ok = r.ping()
-    except Exception:
-        redis_ok = False
+    redis_ok = None
+    redis_url = settings.REDIS_URL
+    if redis_url:
+        try:
+            client = redis.Redis.from_url(redis_url)
+            redis_ok = bool(client.ping())
+        except Exception:
+            redis_ok = False
 
     # Qdrant check (optional)
     qdrant_ok = None

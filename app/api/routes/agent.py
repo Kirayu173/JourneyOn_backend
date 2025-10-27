@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -13,6 +13,7 @@ from app.agents.orchestrator import Orchestrator
 from app.agents.streaming import StreamingAgentSession
 from app.api.deps import get_current_user
 from app.core.security import verify_token
+from app.db.models import User
 from app.db.session import SessionLocal, get_db
 from app.schemas.agent_schemas import AgentEvent
 from app.schemas.common import Envelope
@@ -25,15 +26,15 @@ class ChatRequest(BaseModel):
     trip_id: int
     stage: str
     message: str
-    client_ctx: dict | None = None
+    client_ctx: Dict[str, Any] | None = None
 
 
-@router.post("/chat", response_model=Envelope[dict[str, Any]])
+@router.post("/chat", response_model=Envelope[Dict[str, Any]])
 async def agent_chat(
     req: ChatRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-) -> Envelope[dict[str, Any]]:
+    current_user: User = Depends(get_current_user),
+) -> Envelope[Dict[str, Any]]:
     conv = save_message(
         db,
         trip_id=req.trip_id,
@@ -87,7 +88,7 @@ async def _event_source(stream: AsyncGenerator[AgentEvent, None]) -> AsyncGenera
 async def agent_chat_stream(
     req: ChatRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     save_message(
         db,
@@ -113,7 +114,7 @@ async def agent_chat_stream(
     return StreamingResponse(_event_source(stream), media_type="text/event-stream")
 
 
-async def _receive_agent_payload(websocket: WebSocket) -> Optional[dict[str, Any]]:
+async def _receive_agent_payload(websocket: WebSocket) -> Optional[Dict[str, Any]]:
     try:
         message = await websocket.receive_json()
         if not isinstance(message, dict):
@@ -138,7 +139,14 @@ async def agent_chat_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=4401)
         return
 
-    user_id = int(payload.get("sub"))
+    user_sub = payload.get("sub")
+    try:
+        user_id = int(user_sub) if user_sub is not None else None
+    except (TypeError, ValueError):
+        user_id = None
+    if user_id is None:
+        await websocket.close(code=4401)
+        return
 
     db = SessionLocal()
     try:
@@ -149,15 +157,25 @@ async def agent_chat_websocket(websocket: WebSocket) -> None:
             await websocket.close(code=4400)
             return
 
-        try:
-            trip_id = int(initial.get("trip_id"))
-            stage = str(initial.get("stage"))
-            message = str(initial.get("message"))
-        except (TypeError, ValueError):
+        trip_id_raw = initial.get("trip_id")
+        stage_raw = initial.get("stage")
+        message_raw = initial.get("message")
+        if not isinstance(trip_id_raw, (int, str)):
             await websocket.close(code=4400)
             return
+        try:
+            trip_id = int(trip_id_raw)
+        except ValueError:
+            await websocket.close(code=4400)
+            return
+        if stage_raw is None or message_raw is None:
+            await websocket.close(code=4400)
+            return
+        stage = str(stage_raw)
+        message = str(message_raw)
 
-        client_ctx = initial.get("client_ctx") or {}
+        client_ctx_raw = initial.get("client_ctx")
+        client_ctx = client_ctx_raw if isinstance(client_ctx_raw, dict) else {}
 
         save_message(
             db,
@@ -178,6 +196,7 @@ async def agent_chat_websocket(websocket: WebSocket) -> None:
             stage=stage,
             message_text=message,
             user_id=user_id,
+            client_ctx=client_ctx,
         ):
             await websocket.send_json(event.model_dump(mode="json"))
 

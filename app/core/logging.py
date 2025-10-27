@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import logging
 from logging.config import dictConfig
-from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 from pathlib import Path
+from typing import Any
 
 from app.core.config import settings
 from app.core.request_context import request_id_var
 
 
 class RequestIdFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+    def filter(self, record: logging.LogRecord) -> bool:
         # attach request_id if available
         rid = request_id_var.get()
         setattr(record, "request_id", rid or "-")
@@ -22,7 +22,7 @@ def setup_logging(level: str = "info") -> None:
     level_upper = level.upper()
 
     # Ensure log directory exists if writing to file
-    handlers: dict[str, dict] = {
+    handlers: dict[str, dict[str, Any]] = {
         "default": {
             "class": "logging.StreamHandler",
             "formatter": "json",
@@ -78,4 +78,6 @@ def setup_logging(level: str = "info") -> None:
             },
         }
     )
-    logging.getLogger(__name__).info("Logging configured", extra={"level": level_upper})
+    logging.getLogger(__name__).info(
+        "Logging configured", extra={"level": level_upper}
+    )

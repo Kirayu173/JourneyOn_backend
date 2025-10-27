@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.tag_schemas import (
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/user_tags", tags=["user_tags"])
 def create_user_tag_endpoint(
     req: UserTagCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[UserTagResponse]:
     item = create_user_tag(
         db,
@@ -48,8 +49,8 @@ def list_user_tags_endpoint(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-) -> Envelope[list[UserTagResponse]]:
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[UserTagResponse]]:
     items = get_user_tags(
         db,
         user_id=current_user.id,
@@ -66,7 +67,7 @@ def update_user_tag_endpoint(
     tag_id: int,
     req: UserTagUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[UserTagResponse]:
     item = update_user_tag(
         db,
@@ -83,7 +84,7 @@ def update_user_tag_endpoint(
 def delete_user_tag_endpoint(
     tag_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Envelope[bool]:
     delete_user_tag(db, user_id=current_user.id, tag_id=tag_id)
     return Envelope(code=0, msg="ok", data=True)
@@ -93,8 +94,8 @@ def delete_user_tag_endpoint(
 def bulk_upsert_user_tags_endpoint(
     req: list[UserTagUpsert],
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-) -> Envelope[list[UserTagResponse]]:
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[UserTagResponse]]:
     items = bulk_upsert_user_tags(
         db,
         user_id=current_user.id,

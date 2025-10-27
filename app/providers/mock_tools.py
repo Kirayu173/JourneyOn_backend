@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
+
+
+class HotelItem(TypedDict):
+    name: str
+    price: float
+    rating: float
+    address: str
 
 
 def suggest_tasks(stage: str, message: str) -> List[Dict[str, Any]]:
@@ -104,10 +111,20 @@ def get_mock_weather(city: str) -> Dict[str, Any]:
     }
 
 
-def search_mock_hotels(city: str, budget: float | None = None) -> List[Dict[str, Any]]:
-    items = [
-        {"name": "Central City Hotel", "price": 480, "rating": 8.7, "address": f"{city} central district"},
-        {"name": "Riverside Hotel", "price": 560, "rating": 9.0, "address": f"{city} riverside"},
+def search_mock_hotels(city: str, budget: float | None = None) -> List[HotelItem]:
+    items: List[HotelItem] = [
+        {
+            "name": "Central City Hotel",
+            "price": 480.0,
+            "rating": 8.7,
+            "address": f"{city} central district",
+        },
+        {
+            "name": "Riverside Hotel",
+            "price": 560.0,
+            "rating": 9.0,
+            "address": f"{city} riverside",
+        },
     ]
     if budget is not None:
         items = [h for h in items if h["price"] <= budget]

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.audit import AuditLogResponse
 from app.schemas.common import Envelope
@@ -21,7 +22,7 @@ def get_audit_logs(
     user_id: Optional[int] = None,
     trip_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_admin=Depends(require_admin),
+    current_admin: User = Depends(require_admin),
 ) -> Envelope[List[AuditLogResponse]]:
     limit = max(1, min(limit, 500))
     logs = list_logs(db, limit=limit, offset=offset, user_id=user_id, trip_id=trip_id)

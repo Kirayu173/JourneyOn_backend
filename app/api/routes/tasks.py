@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.task_schemas import TaskCreate, TaskUpdate, TaskResponse
@@ -24,8 +25,8 @@ def create_trip_task(
     trip_id: int,
     payload: TaskCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[TaskResponse]:
     task = create_task(
         db,
         trip_id=trip_id,
@@ -46,8 +47,8 @@ def list_trip_tasks(
     trip_id: int,
     stage: str | None = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[TaskResponse]]:
     tasks = get_tasks_for_trip(db, trip_id=trip_id, user_id=current_user.id, stage=stage)
     return Envelope(code=0, msg="ok", data=[TaskResponse.model_validate(t) for t in tasks])
 
@@ -58,8 +59,8 @@ def patch_trip_task(
     task_id: int,
     payload: TaskUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[TaskResponse]:
     # Ensure trip ownership implicitly via service update
     try:
         updated = update_task(
@@ -87,7 +88,7 @@ def delete_trip_task(
     trip_id: int,
     task_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[None]:
     delete_task(db, task_id=task_id, user_id=current_user.id)
     return Envelope(code=0, msg="ok", data=None)

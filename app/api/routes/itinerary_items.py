@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
 from app.schemas.common import Envelope
 from app.schemas.itinerary_schemas import (
@@ -28,8 +29,8 @@ def create_itinerary_item(
     trip_id: int,
     payload: ItineraryItemCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[ItineraryItemResponse]:
     item = create_item(
         db,
         trip_id=trip_id,
@@ -52,8 +53,8 @@ def list_itinerary_items(
     trip_id: int,
     day: int | None = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[List[ItineraryItemResponse]]:
     items = get_items(db, trip_id=trip_id, user_id=current_user.id, day=day)
     return Envelope(code=0, msg="ok", data=[ItineraryItemResponse.model_validate(i) for i in items])
 
@@ -64,8 +65,8 @@ def patch_itinerary_item(
     item_id: int,
     payload: ItineraryItemUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[ItineraryItemResponse]:
     updated = update_item(
         db,
         item_id=item_id,
@@ -88,7 +89,7 @@ def delete_itinerary_item(
     trip_id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> Envelope[None]:
     delete_item(db, item_id=item_id, user_id=current_user.id)
     return Envelope(code=0, msg="ok", data=None)
