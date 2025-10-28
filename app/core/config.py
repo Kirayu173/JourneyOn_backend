@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     提供整个应用程序使用的类型化配置。
     """
 
-    DATABASE_URL: str = "postgresql+psycopg2://app:secret@localhost:5432/journeyon"
+    DATABASE_URL: str = "postgresql+psycopg2://admin:admin123@localhost:5432/journeyon"
     REDIS_URL: str | None = "redis://localhost:6379/0"
     QDRANT_URL: str | None = None
     QDRANT_API_KEY: str | None = None
@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     LLM_REQUEST_TIMEOUT: float = 30.0
     LLM_STREAM_TIMEOUT: float = 60.0
     OLLAMA_CHAT_MODEL: str = "gpt-oss:120b-cloud"
-    ZHIPU_API_KEY: str | None = None
+    ZHIPU_API_KEY: str | None = "51c5899af04c4ecb829b9de23eeebada.NkcVW5vsFKR7sSA7"
     ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
-    ZHIPU_CHAT_MODEL: str = "glm-4.5-x"
+    ZHIPU_CHAT_MODEL: str = "glm-4-flashx-250414"
 
     SECRET_KEY: str = "dev-secret-key"
     LOG_LEVEL: str = "info"
@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     # 嵌入模型提供商
     ENABLE_EMBEDDING: bool = False
     EMBEDDING_PROVIDER: str = "ollama"  # 支持: "ollama", "openai"
-    OLLAMA_URL: str | None = None  # 例如: http://localhost:11434
+    OLLAMA_URL: str | None = "http://localhost:11434"
     OLLAMA_EMBED_MODEL: str = "bge-m3:latest"
-    OLLAMA_RERANK_MODEL: str | None = None
+    OLLAMA_RERANK_MODEL: str | None = "dengcao/bge-reranker-v2-m3:latest"
     OLLAMA_RERANK_ENABLED: bool = True
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
