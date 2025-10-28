@@ -12,6 +12,7 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
 - Typed settings (`pydantic-settings`) and structured logging
 - Mypy config and pytest tests
 - Redis cache helpers with shared rate-limiting/search cache for knowledge base vector search
+- Optional memory layer (mem0) with REST APIs under `/api/memories` (add/search/get/update/delete/history/delete_all)
 - Local file storage abstraction with `/api/trips/{trip_id}/reports` endpoints (base64 upload, metadata list, download, delete)
 - Audit logging service and admin `/api/audit-logs` endpoint for operational tracing
 
@@ -23,6 +24,23 @@ A modular FastAPI project skeleton aligned with the design docs in `_design/`. I
    docker-compose up --build
    ```
 3. Open API docs at: `http://localhost:8000/docs`
+
+### Memory (mem0) Integration
+- Enabled by default in compose via `MEMORY_ENABLED=true`.
+- Config uses Qdrant + Ollama embeddings by default:
+  - `MEMORY_COLLECTION_NAME=memories`, `VECTOR_DIM=1024`
+  - `OLLAMA_URL=http://host.docker.internal:11434`, `OLLAMA_EMBED_MODEL=bge-m3:latest`
+- Endpoints:
+  - `POST /api/memories/add` – add conversation turns
+  - `POST/GET /api/memories/search` – semantic retrieval
+  - `GET /api/memories/{id}` – get by id
+  - `PUT /api/memories/{id}` – update text
+  - `DELETE /api/memories/{id}` – delete
+  - `GET /api/memories/{id}/history` – event history
+  - `POST /api/memories/delete_all` – bulk delete by filters
+
+Notes:
+- The project now depends on `mem0ai` (see `requirements.txt`). Rebuild the image if running in Docker.
 
 ## Local Development (without Docker)
 

@@ -35,6 +35,20 @@
 
 ---
 
+## ✅ 集成进度补充（Memory 层）
+- mem0 集成：已完成封装（`app/services/memory_service.py`）与 REST 路由（`/api/memories/*`）。
+- 环境：Docker Compose 已默认启用（`MEMORY_ENABLED=true`），矢量库为 Qdrant，嵌入走本机 Ollama。
+- 一键测试：
+  - 依赖连通性：`docker-compose exec -T web python scripts/check_dependencies.py --json`
+  - 流式：`docker-compose exec -T web python scripts/test_streaming.py`
+  - KB：`docker-compose exec -T web python scripts/integration_test.py --base http://web:8000`
+  - Memory：`docker-compose exec -T web python scripts/test_memories.py`
+- 文档：
+  - README 增加 Memory 说明
+  - `docs/智能体逻辑开发指南.md`、`docs/自定义工具开发指南.md` 增加 Memory 使用说明
+
+---
+
 ## 📅 建议执行顺序
 
 1. **T1–T3**（基础结构，LangGraph主图与节点）  
