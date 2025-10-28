@@ -9,21 +9,35 @@ class Settings(BaseSettings):
     提供整个应用程序使用的类型化配置。
     """
 
-    DATABASE_URL: str = "postgresql+psycopg2://admin:admin123@localhost:5432/journeyon"
+    # 数据库配置
+    DATABASE_URL: str = "postgresql+psycopg2://app:secret@localhost:5432/journeyon"
+    
+    # Redis配置
     REDIS_URL: str | None = "redis://localhost:6379/0"
-    QDRANT_URL: str | None = None
+    
+    # Qdrant向量数据库配置
+    QDRANT_URL: str | None = "http://localhost:6333"
     QDRANT_API_KEY: str | None = None
     QDRANT_COLLECTION_NAME: str = "kb_entries"
     VECTOR_DIM: int = 1024
     VECTOR_DISTANCE: str = "Cosine"
 
+    # Web服务配置
+    WEB_HOST: str = "0.0.0.0"
+    WEB_PORT: int = 8000
+    
     # LLM 提供商配置
     LLM_PROVIDER: str = "ollama"  # 支持: "ollama", "zhipu"
     LLM_MAX_RETRIES: int = 3
     LLM_RETRY_BASE_DELAY: float = 0.5
     LLM_REQUEST_TIMEOUT: float = 30.0
     LLM_STREAM_TIMEOUT: float = 60.0
+    
+    # Ollama配置
+    OLLAMA_URL: str | None = "http://localhost:11434"
     OLLAMA_CHAT_MODEL: str = "gpt-oss:120b-cloud"
+    
+    # 智谱AI配置
     ZHIPU_API_KEY: str | None = "51c5899af04c4ecb829b9de23eeebada.NkcVW5vsFKR7sSA7"
     ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
     ZHIPU_CHAT_MODEL: str = "glm-4-flashx-250414"
@@ -34,13 +48,19 @@ class Settings(BaseSettings):
     # 嵌入模型提供商
     ENABLE_EMBEDDING: bool = False
     EMBEDDING_PROVIDER: str = "ollama"  # 支持: "ollama", "openai"
+    
+    # Ollama嵌入配置
     OLLAMA_URL: str | None = "http://localhost:11434"
     OLLAMA_EMBED_MODEL: str = "bge-m3:latest"
     OLLAMA_RERANK_MODEL: str | None = "dengcao/bge-reranker-v2-m3:latest"
     OLLAMA_RERANK_ENABLED: bool = True
+    
+    # OpenAI嵌入配置
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_EMBED_MODEL: str = "text-embedding-3-large"
+    
+    # 嵌入处理配置
     EMBEDDING_CONCURRENCY: int = 4
     EMBEDDING_TIMEOUT: float = 30.0
 
@@ -70,3 +90,47 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# 端口信息汇总（便于测试和开发）
+PORT_SUMMARY = {
+    "web_service": {
+        "host": settings.WEB_HOST,
+        "port": settings.WEB_PORT,
+        "url": f"http://{settings.WEB_HOST}:{settings.WEB_PORT}"
+    },
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "url": settings.DATABASE_URL
+    },
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "url": settings.REDIS_URL
+    },
+    "qdrant": {
+        "host": "localhost",
+        "port": 6333,
+        "url": settings.QDRANT_URL
+    },
+    "ollama": {
+        "host": "localhost",
+        "port": 11434,
+        "url": settings.OLLAMA_URL
+    }
+}
+
+
+def get_service_url(service_name: str) -> str:
+    """获取指定服务的URL"""
+    if service_name in PORT_SUMMARY:
+        return PORT_SUMMARY[service_name]["url"]
+    raise ValueError(f"未知的服务名称: {service_name}")
+
+
+def get_service_port(service_name: str) -> int:
+    """获取指定服务的端口号"""
+    if service_name in PORT_SUMMARY:
+        return PORT_SUMMARY[service_name]["port"]
+    raise ValueError(f"未知的服务名称: {service_name}")
