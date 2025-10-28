@@ -63,12 +63,18 @@ async def main() -> int:
             json={"query": "夜景 摄影", "top_k": 5},
         )
         data = search.json().get("data", [])
-        print("search count:", len(data))
+        try:
+            print("search count:", len(data))
+        except TypeError:
+            data = []
+            print("search count:", 0)
 
         # get + history if id exists
         memory_id = None
         if data:
-            memory_id = data[0].get("id") or data[0].get("memory_id")
+            first = data[0]
+            if isinstance(first, dict):
+                memory_id = first.get("id") or first.get("memory_id") or first.get("uuid")
         if memory_id:
             get = await client.get(f"{BASE}/api/memories/{memory_id}", headers=headers)
             print("get:", get.status_code)
@@ -90,4 +96,3 @@ async def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(asyncio.run(main()))
-

@@ -56,7 +56,7 @@ services:
       OLLAMA_RERANK_MODEL: dengcao/bge-reranker-v2-m3:latest
       QDRANT_COLLECTION_NAME: kb_entries
       VECTOR_DIM: 1024
-      MEMORY_ENABLED: "true"
+      MEMORY_ENABLED: "false"
       MEMORY_INFER: "false"
       MEMORY_COLLECTION_NAME: memories
       MEM0_DISABLE_TELEMETRY: "true"
