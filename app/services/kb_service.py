@@ -267,6 +267,24 @@ async def rerank_results(query: str, results: list[dict[str, Any]]) -> list[dict
         documents.append(content)
     scores = await reranker.rerank(query, documents)
     score_map = {res.index: res.score for res in scores}
+    # 回退：若 reranker 无法产出分数，则使用嵌入相似度进行重排
+    if not score_map:
+        try:
+            emb = EmbeddingService()
+            qv = await emb.embed(query)
+            dvs = await emb.embed_batch(documents)
+            def _cos(a: list[float], b: list[float]) -> float:
+                if not a or not b or len(a) != len(b):
+                    return 0.0
+                s = sum(x*y for x, y in zip(a, b))
+                na = sum(x*x for x in a) ** 0.5
+                nb = sum(y*y for y in b) ** 0.5
+                if na == 0 or nb == 0:
+                    return 0.0
+                return s / (na * nb)
+            score_map = {i: _cos(qv, vec) for i, vec in enumerate(dvs)}
+        except Exception:
+            score_map = {}
     if not score_map:
         return results
     indexed = list(enumerate(results))

@@ -108,34 +108,72 @@ class RerankService:
         self._timeout = httpx.Timeout(settings.LLM_REQUEST_TIMEOUT)
 
     async def rerank(self, query: str, documents: Sequence[str]) -> List[RerankResult]:
-        """Rerank a list of documents given a query."""
+        """Rerank a list of documents given a query.
+
+        为适配不同 Ollama 模型的生成行为，这里构造明确的指令化提示，并做多种解析回退：
+        - 首选解析 JSON 数组（如 [0.9, 0.2, ...]）
+        - 次选解析每行一个浮点数
+        - 若以上均失败则返回空（保持原排序）
+        """
         if not documents:
             return []
+
+        numbered_docs = "\n".join(f"{i+1}. {d}" for i, d in enumerate(documents))
+        instruction = (
+            "You are a reranker. Given a query and a list of documents, "
+            "return ONLY a JSON array of relevance scores between 0 and 1, in the same order as the documents. "
+            "Do not include any explanation.\n\n"
+            f"Query: {query}\n"
+            f"Documents:\n{numbered_docs}\n\n"
+            "Output format example: [0.91, 0.12, 0.57]"
+        )
+
         payload = {
             "model": self._model,
             "stream": False,
-            "prompt": json.dumps({"query": query, "documents": list(documents)}, ensure_ascii=False),
+            "prompt": instruction,
         }
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(f"{self._base_url}/api/generate", json=payload)
         if response.status_code >= 400:
             raise EmbeddingError(f"rerank_failed:{response.status_code}")
         data = response.json()
-        text = data.get("response") or ""
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                return [RerankResult(index=i, score=float(item.get("score", 0.0))) for i, item in enumerate(parsed)]
-        except json.JSONDecodeError:
-            pass
-        scores: List[RerankResult] = []
-        for idx, line in enumerate(text.splitlines()):
+        text = (data.get("response") or "").strip()
+
+        # 尝试解析 JSON 数组
+        def _parse_json_array(s: str) -> List[float] | None:
+            s_stripped = s
+            # 容错：截取第一个方括号片段
+            if "[" in s and "]" in s:
+                s_stripped = s[s.find("[") : s.rfind("]") + 1]
             try:
-                score = float(line.strip())
-            except ValueError:
-                continue
-            scores.append(RerankResult(index=idx, score=score))
-        return scores
+                arr = json.loads(s_stripped)
+                if isinstance(arr, list):
+                    floats: List[float] = []
+                    for item in arr:
+                        try:
+                            floats.append(float(item))
+                        except (TypeError, ValueError):
+                            floats.append(0.0)
+                    return floats
+            except json.JSONDecodeError:
+                return None
+            return None
+
+        scores_array = _parse_json_array(text)
+        if scores_array is None:
+            # 逐行解析浮点数
+            scores_array = []
+            for line in text.splitlines():
+                try:
+                    scores_array.append(float(line.strip()))
+                except ValueError:
+                    continue
+
+        results: List[RerankResult] = []
+        for idx in range(min(len(documents), len(scores_array or []))):
+            results.append(RerankResult(index=idx, score=float(scores_array[idx])))
+        return results
 
 
 __all__ = ["EmbeddingService", "EmbeddingError", "RerankService", "RerankResult"]
