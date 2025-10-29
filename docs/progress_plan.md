@@ -2,10 +2,10 @@
 
 ## 当前进度概览
 
-- **核心接口完成度高**：按照《阶段性开发计划_调整后.md》的阶段一、阶段二目标，认证、行程、任务、行程项、会话等 CRUD 接口全部上线，并通过 `pytest` 自动化测试覆盖主要业务流程。
-- **知识库与向量检索**：根据《后端设计方案.md》第 7 章要求，已实现 KB 条目的增删改查、异步向量生成（FastAPI Task）、Redis 缓存与精排可选的 `/api/kb/search`（支持 POST/GET，含 metadata filters 与 rerank）。
-- **文件存储与报告管理**：结合《后端设计方案.md》中对文件存储模块的描述，实现本地文件存储抽象、报告模型与 CRUD API，可为 Post-trip Agent 生成 PDF/图片报告做好准备。
-- **审计日志闭环**：`audit_logs` 表、统一 `log_action` 服务与管理员查询端点 `/api/audit-logs` 均已就绪，关键业务写操作均记录审计轨迹，满足《后端设计方案.md》第 12 章的安全与合规要求。
+- **核心接口完成度高**：按照前期阶段性开发计划中定义的阶段一、阶段二目标，认证、行程、任务、行程项、会话等 CRUD 接口全部上线，并通过 `pytest` 自动化测试覆盖主要业务流程。
+- **知识库与向量检索**：根据后端设计要求，已实现 KB 条目的增删改查、异步向量生成（FastAPI Task）、Redis 缓存与精排可选的 `/api/kb/search`（支持 POST/GET，含 metadata filters 与 rerank）。
+- **文件存储与报告管理**：结合后端设计对文件存储模块的描述，实现本地文件存储抽象、报告模型与 CRUD API，可为 Post-trip Agent 生成 PDF/图片报告做好准备。
+- **审计日志闭环**：`audit_logs` 表、统一 `log_action` 服务与管理员查询端点 `/api/audit-logs` 均已就绪，关键业务写操作均记录审计轨迹，满足安全与合规要求。
 - **统一 LLM 接入层**：新增 `LLMClient` 支持 Ollama/Zhipu 切换，`/api/agent/chat`、SSE 与 WebSocket 均走统一异步链路并带 run_id/usage 追踪。
 - **可配置化 Embedding/RAG**：内置异步 Ollama Embedding、可选精排模型、Redis 限流/缓存与健康检查，后续可扩展至 OpenAI 或其他后端。
 
