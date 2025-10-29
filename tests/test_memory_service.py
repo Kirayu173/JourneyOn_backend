@@ -12,10 +12,19 @@ class DummyMemory:
     def __init__(self, config: Any) -> None:
         self.config = config
         self.calls: List[Dict[str, Any]] = []
+        self.storage: Dict[str, str] = {}
+        self.histories: Dict[str, List[Dict[str, Any]]] = {}
+        self._counter = 0
 
     def add(self, messages: List[Dict[str, Any]], **kwargs: Any) -> Dict[str, Any]:
         self.calls.append({"method": "add", "messages": messages, "kwargs": kwargs})
-        return {"id": "mem-1", "messages": messages, **kwargs}
+        self._counter += 1
+        memory_id = kwargs.get("memory_id") or f"mem-{self._counter}"
+        text = "\n".join(m.get("content", "") for m in messages)
+        self.storage[memory_id] = text
+        self.histories.setdefault(memory_id, []).append({"text": text, "messages": messages})
+        payload = {"id": memory_id, "messages": messages, **kwargs}
+        return payload
 
     def search(self, query: str, *, limit: int, filters: Dict[str, Any], threshold: float | None) -> List[Dict[str, Any]]:
         self.calls.append({
@@ -25,19 +34,32 @@ class DummyMemory:
             "filters": filters,
             "threshold": threshold,
         })
-        return [{"id": "mem-1", "query": query, "filters": filters}]
+        results: List[Dict[str, Any]] = []
+        for memory_id, text in self.storage.items():
+            if query and query not in text:
+                continue
+            results.append({
+                "id": memory_id,
+                "text": text,
+                "metadata": filters,
+            })
+        return results[:limit] or [{"id": "mem-1", "query": query, "filters": filters}]
 
     def update(self, memory_id: str, text: str) -> Dict[str, Any]:
         self.calls.append({"method": "update", "memory_id": memory_id, "text": text})
+        self.storage[memory_id] = text
+        self.histories.setdefault(memory_id, []).append({"text": text})
         return {"id": memory_id, "text": text}
 
     def delete(self, memory_id: str) -> Dict[str, Any]:
         self.calls.append({"method": "delete", "memory_id": memory_id})
+        self.storage.pop(memory_id, None)
+        self.histories.pop(memory_id, None)
         return {"id": memory_id, "deleted": True}
 
     def get(self, memory_id: str) -> Dict[str, Any]:
         self.calls.append({"method": "get", "memory_id": memory_id})
-        return {"id": memory_id, "text": "stub"}
+        return {"id": memory_id, "text": self.storage.get(memory_id, "")}
 
     def delete_all(self, *, user_id: str | None = None, agent_id: str | None = None, run_id: str | None = None) -> Dict[str, Any]:
         self.calls.append({
@@ -46,11 +68,13 @@ class DummyMemory:
             "agent_id": agent_id,
             "run_id": run_id,
         })
+        self.storage.clear()
+        self.histories.clear()
         return {"deleted": True, "user_id": user_id, "agent_id": agent_id, "run_id": run_id}
 
     def history(self, memory_id: str) -> List[Dict[str, Any]]:
         self.calls.append({"method": "history", "memory_id": memory_id})
-        return [{"id": memory_id, "text": "stub-history"}]
+        return self.histories.get(memory_id, [{"id": memory_id, "text": "stub-history"}])
 
 
 class DummyMemoryConfig:
@@ -174,8 +198,8 @@ def test_memory_service_enabled_invokes_mem0(monkeypatch: pytest.MonkeyPatch, pa
     assert patched_mem0.calls[0]["kwargs"]["infer"] is True
     assert svc.search("夜景摄影", top_k=5, filters={"user_id": "user-1"})[0]["id"] == "mem-1"
     assert svc.update("mem-1", "updated") == {"id": "mem-1", "text": "updated"}
-    assert svc.get("mem-1") == {"id": "mem-1", "text": "stub"}
-    assert svc.history("mem-1")[0]["text"] == "stub-history"
+    assert svc.get("mem-1") == {"id": "mem-1", "text": "updated"}
+    assert svc.history("mem-1")[0]["text"] == "你好\n记录"
     assert svc.delete("mem-1") == {"id": "mem-1", "deleted": True}
     assert svc.delete_all(filters={"user_id": "user-1", "agent_id": "agent", "run_id": "run"}) == {
         "deleted": True,
@@ -216,3 +240,24 @@ def test_memory_service_handles_mem0_errors(monkeypatch: pytest.MonkeyPatch, pat
     assert svc.get("mem") is None
     assert svc.history("mem") == []
     assert svc.delete_all(filters={"user_id": "u"}) is None
+
+
+def test_memory_service_update_modes(monkeypatch: pytest.MonkeyPatch, patched_mem0: DummyMemory) -> None:
+    svc = MemoryService()
+
+    # Ensure an existing memory entry
+    payload = svc.add_messages([{"role": "user", "content": "初始"}], user_id="u")
+    assert payload is not None
+    memory_id = payload["id"]
+
+    append_result = svc.append_memory(memory_id, [{"role": "assistant", "content": "补充"}])
+    assert append_result is not None
+    assert append_result["text"].endswith("补充")
+
+    overwrite_result = svc.replace_memory(memory_id, [{"role": "system", "content": "覆盖"}])
+    assert overwrite_result is not None
+    assert overwrite_result["text"] == "system: 覆盖"
+
+    mode_result = svc.update_memory(memory_id, [{"role": "user", "content": "再补充"}], mode="append")
+    assert mode_result is not None
+    assert "再补充" in mode_result["text"]
