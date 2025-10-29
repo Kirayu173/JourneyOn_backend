@@ -99,8 +99,18 @@ async def get_qdrant_service() -> QdrantService | None:
         return None
     async with _qdrant_lock:
         if _qdrant_instance is None:
-            _qdrant_instance = QdrantService()
-            await _qdrant_instance.ensure_collection()
+            try:
+                instance = QdrantService()
+            except RuntimeError:
+                return None
+            try:
+                ok = await instance.ensure_collection()
+            except Exception:
+                logger.exception("qdrant_init_failed")
+                ok = False
+            if not ok:
+                return None
+            _qdrant_instance = instance
         return _qdrant_instance
 
 

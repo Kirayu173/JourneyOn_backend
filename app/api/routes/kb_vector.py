@@ -161,7 +161,11 @@ async def _search_impl(
         logger.warning("embedding_service_unavailable")
         return Envelope(code=0, msg="embedding_disabled", data=[])
 
-    vector = await embedding_service.embed(req.query)
+    try:
+        vector = await embedding_service.embed(req.query)
+    except Exception:
+        logger.exception("embedding_query_failed")
+        return Envelope(code=0, msg="embedding_unavailable", data=[])
     filter_ = _build_filter(req.filters)
     qdrant = await get_qdrant_service()
     if qdrant is None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
 
 from app.core.config import settings
 
@@ -22,6 +22,15 @@ class MemoryService:
         self._enabled = bool(getattr(settings, "MEMORY_ENABLED", False))
         self._infer = bool(getattr(settings, "MEMORY_INFER", False))
         self._memory: "Memory" | None = None
+
+    # ------------------------------------------------------------------
+    # Introspection helpers
+    # ------------------------------------------------------------------
+
+    def is_enabled(self) -> bool:
+        """Return whether the memory layer is enabled."""
+
+        return self._enabled
 
     def _build_config(self) -> "MemoryConfig":
         # Import locally to avoid import-time side effects when disabled
@@ -113,6 +122,47 @@ class MemoryService:
             # Avoid raising to upstream flows; operate best-effort
             return None
 
+    # ------------------------------------------------------------------
+    # Text utilities for update/replace operations
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _messages_to_text(messages: Iterable[Dict[str, Any]]) -> str:
+        """Collapse a list of chat messages into a deterministic text block."""
+
+        parts: list[str] = []
+        for msg in messages:
+            role = str(msg.get("role", "")).strip()
+            content = str(msg.get("content", "")).strip()
+            if not content:
+                continue
+            if role:
+                parts.append(f"{role}: {content}")
+            else:
+                parts.append(content)
+        return "\n".join(parts).strip()
+
+    @staticmethod
+    def _extract_text(payload: Dict[str, Any] | None) -> str:
+        """Best-effort extraction of text content from a mem0 payload."""
+
+        if not payload:
+            return ""
+        if isinstance(payload, dict):
+            if isinstance(payload.get("text"), str):
+                return cast(str, payload["text"])
+            metadata = payload.get("metadata")
+            if isinstance(metadata, dict):
+                text = metadata.get("text") or metadata.get("summary")
+                if isinstance(text, str):
+                    return text
+            messages = payload.get("messages")
+            if isinstance(messages, Iterable):
+                return MemoryService._messages_to_text(
+                    cast(Iterable[Dict[str, Any]], messages)
+                )
+        return ""
+
     def search(
         self,
         query: str,
@@ -147,6 +197,54 @@ class MemoryService:
             return cast(Dict[str, Any], self._memory.update(memory_id, text))
         except Exception:
             return None
+
+    def replace_memory(
+        self, memory_id: str, messages: List[Dict[str, Any]]
+    ) -> Dict[str, Any] | None:
+        """Overwrite a memory entry with the provided messages."""
+
+        if not self._enabled:
+            return None
+        self._ensure_memory()
+        if self._memory is None:
+            return None
+        text = self._messages_to_text(messages)
+        try:
+            return cast(Dict[str, Any], self._memory.update(memory_id, text))
+        except Exception:
+            return None
+
+    def append_memory(
+        self, memory_id: str, messages: List[Dict[str, Any]]
+    ) -> Dict[str, Any] | None:
+        """Append new message content to an existing memory entry."""
+
+        if not self._enabled:
+            return None
+        self._ensure_memory()
+        if self._memory is None:
+            return None
+        text = self._messages_to_text(messages)
+        try:
+            existing = self.get(memory_id)
+            base = self._extract_text(existing)
+            combined = text if not base else f"{base}\n{text}" if text else base
+            return cast(Dict[str, Any], self._memory.update(memory_id, combined))
+        except Exception:
+            return None
+
+    def update_memory(
+        self,
+        memory_id: str,
+        messages: List[Dict[str, Any]],
+        *,
+        mode: str = "append",
+    ) -> Dict[str, Any] | None:
+        """Update a memory entry using append or overwrite strategy."""
+
+        if mode == "overwrite":
+            return self.replace_memory(memory_id, messages)
+        return self.append_memory(memory_id, messages)
 
     def delete(self, memory_id: str) -> Dict[str, Any] | None:
         if not self._enabled:

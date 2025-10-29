@@ -11,9 +11,13 @@ import json
 from typing import AsyncIterator
 
 import httpx
+import pytest
 import websockets
 
 BASE = "http://localhost:8000"
+
+
+pytestmark = pytest.mark.skip(reason="streaming 集成测试依赖外部服务，默认跳过")
 
 
 async def _wait_ready(base: str, timeout_s: int = 30) -> None:
