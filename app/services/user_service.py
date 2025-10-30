@@ -56,3 +56,42 @@ def authenticate_user_by_identifier(db: Session, username_or_email: str, passwor
     if not verify_password(password, user.password_hash):
         return None
     return user
+
+
+def update_user_profile(
+    db: Session,
+    *,
+    user_id: int,
+    display_name: Optional[str] = None,
+    email: Optional[str] = None,
+    meta: Optional[dict] = None,
+) -> User:
+    """Update user's profile fields with uniqueness checks for email.
+
+    Raises HTTPException 409 on email conflict and 404 if user missing.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user_not_found")
+
+    if email and email != user.email:
+        # ensure unique email
+        conflict = db.query(User).filter(User.email == email, User.id != user.id).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="email_already_exists")
+        user.email = email
+    if display_name is not None:
+        user.display_name = display_name
+    if meta is not None:
+        try:
+            # ensure meta is dict-like
+            if not isinstance(meta, dict):
+                raise TypeError
+        except TypeError:
+            raise HTTPException(status_code=400, detail="invalid_meta")
+        user.meta = meta
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

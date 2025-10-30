@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
     stage: str
     message: str
     client_ctx: Dict[str, Any] | None = None
+    cards: bool | None = None
 
 
 @router.post("/chat", response_model=Envelope[Dict[str, Any]])
@@ -58,6 +59,45 @@ async def agent_chat(
         client_ctx=req.client_ctx or {},
     )
 
+    def _build_cards(stage: str, text: str) -> list[dict[str, Any]]:
+        stage_norm = (stage or "").strip().lower()
+        if stage_norm == "pre":
+            return [
+                {
+                    "type": "planning",
+                    "title": "行程规划草案",
+                    "items": [
+                        {"kind": "text", "text": text},
+                    ],
+                }
+            ]
+        if stage_norm == "on":
+            return [
+                {
+                    "type": "daily_schedule",
+                    "title": "当日行程与提醒",
+                    "items": [
+                        {"kind": "text", "text": text},
+                    ],
+                }
+            ]
+        # post or others
+        return [
+            {
+                "type": "summary",
+                "title": "旅行回顾",
+                "items": [
+                    {"kind": "text", "text": text},
+                ],
+            }
+        ]
+
+    cards_enabled = bool(req.cards)
+    cards: list[dict[str, Any]] | None = None
+    if cards_enabled:
+        msg_text = str(reply.get("reply", "")) if isinstance(reply, dict) else ""
+        cards = _build_cards(req.stage, msg_text)
+
     return Envelope(
         code=0,
         msg="ok",
@@ -70,6 +110,7 @@ async def agent_chat(
                 "message_meta": conv.message_meta,
             },
             "agent": reply,
+            **({"cards": cards, "cards_enabled": True} if cards_enabled else {}),
         },
     )
 

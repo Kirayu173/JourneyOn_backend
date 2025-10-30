@@ -10,6 +10,8 @@ from app.schemas.common import Envelope
 from app.db.session import get_db
 from app.services.user_service import create_user, authenticate_user_by_identifier
 from app.core.security import create_access_token
+from app.api.deps import get_current_user
+from app.db.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,6 +36,16 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)) -> Envelope[di
     user = create_user(db, username=req.username, email=req.email, password=req.password)
     token = create_access_token({"sub": str(user.id), "username": user.username, "email": user.email})
     return Envelope(code=0, msg="ok", data={"user": {"id": user.id, "username": user.username, "email": user.email}, "token": token})
+
+
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_user)) -> Envelope[dict[str, Any]]:
+    """退出登录（无状态JWT）：前端丢弃令牌即可。
+
+    该接口仅用于统一交互，服务端不保存会话状态；
+    如需实现令牌黑名单，可在此处扩展。
+    """
+    return Envelope(code=0, msg="ok", data={"logout": True})
 
 
 @router.post("/login")
